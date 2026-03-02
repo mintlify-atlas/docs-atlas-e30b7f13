@@ -1,0 +1,268 @@
+---
+title: useTamboThreadList
+description: Hook to fetch a list of threads with pagination
+---
+
+## Overview
+
+`useTamboThreadList` is a React Query hook for fetching a paginated list of threads with automatic caching and refetching.
+
+## Import
+
+```typescript
+import { useTamboThreadList } from '@tambo-ai/react';
+```
+
+## Signature
+
+```typescript
+function useTamboThreadList(
+  listOptions?: ThreadListParams,
+  queryOptions?: UseQueryOptions<ThreadListResponse>
+): UseQueryResult<ThreadListResponse>
+```
+
+## Parameters
+
+<ParamField path="listOptions" type="ThreadListParams">
+  Filtering and pagination options
+
+  <Expandable title="properties">
+    <ResponseField name="userKey" type="string">
+      User identifier to filter threads (optional if provided via TamboProvider context)
+    </ResponseField>
+
+    <ResponseField name="limit" type="number">
+      Maximum number of threads to return (default: 20)
+    </ResponseField>
+
+    <ResponseField name="cursor" type="string">
+      Pagination cursor from previous response
+    </ResponseField>
+
+    <ResponseField name="order" type="'asc' | 'desc'">
+      Sort order by creation date (default: 'desc')
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="queryOptions" type="UseQueryOptions<ThreadListResponse>">
+  Additional React Query options
+
+  <Expandable title="properties">
+    <ResponseField name="enabled" type="boolean">
+      Whether the query should automatically run
+    </ResponseField>
+
+    <ResponseField name="refetchInterval" type="number | false">
+      Interval in milliseconds to automatically refetch
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+## Return Value
+
+<ResponseField name="data" type="ThreadListResponse">
+  The thread list response
+  
+  <Expandable title="properties">
+    <ResponseField name="threads" type="TamboThread[]">
+      Array of thread objects
+    </ResponseField>
+
+    <ResponseField name="hasMore" type="boolean">
+      Whether more threads are available
+    </ResponseField>
+
+    <ResponseField name="nextCursor" type="string | null">
+      Cursor for fetching the next page
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  Whether the initial data is being loaded
+</ResponseField>
+
+<ResponseField name="isError" type="boolean">
+  Whether an error occurred
+</ResponseField>
+
+<ResponseField name="error" type="Error | null">
+  Error object if the query failed
+</ResponseField>
+
+<ResponseField name="refetch" type="() => Promise<void>">
+  Function to manually refetch the list
+</ResponseField>
+
+## Behavior
+
+- **Stale Time**: Thread list is considered stale after 5 seconds
+- **User Context**: Automatically uses `userKey` from TamboProvider if not explicitly provided
+- **Authentication**: Automatically disabled until user is identified
+- **Pagination**: Supports cursor-based pagination for efficient loading
+
+## Examples
+
+### Basic Usage
+
+```tsx
+import { useTamboThreadList } from '@tambo-ai/react';
+
+function ThreadList() {
+  const { data, isLoading, isError } = useTamboThreadList({
+    limit: 20,
+  });
+
+  if (isLoading) {
+    return <div>Loading threads...</div>;
+  }
+
+  if (isError) {
+    return <div>Error loading threads</div>;
+  }
+
+  return (
+    <ul>
+      {data.threads.map(thread => (
+        <li key={thread.id}>
+          <h3>{thread.name || 'Untitled'}</h3>
+          <p>Status: {thread.runStatus}</p>
+          <time>{new Date(thread.createdAt).toLocaleDateString()}</time>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### With Pagination
+
+```tsx
+import { useState } from 'react';
+import { useTamboThreadList } from '@tambo-ai/react';
+
+function PaginatedThreadList() {
+  const [cursor, setCursor] = useState<string | undefined>();
+  
+  const { data, isLoading } = useTamboThreadList({
+    limit: 10,
+    cursor,
+  });
+
+  if (isLoading) return <Spinner />;
+
+  return (
+    <div>
+      <ul>
+        {data.threads.map(thread => (
+          <ThreadItem key={thread.id} thread={thread} />
+        ))}
+      </ul>
+      
+      {data.hasMore && (
+        <button onClick={() => setCursor(data.nextCursor!)}>
+          Load More
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+### For Specific User
+
+Override the context userKey:
+
+```tsx
+function UserThreadList({ userId }: { userId: string }) {
+  const { data, isLoading } = useTamboThreadList({
+    userKey: userId, // Explicit userKey
+    limit: 50,
+  });
+
+  if (isLoading) return <Spinner />;
+
+  return (
+    <div>
+      <h2>Threads for {userId}</h2>
+      <ThreadGrid threads={data.threads} />
+    </div>
+  );
+}
+```
+
+### With Sorting
+
+```tsx
+function SortedThreadList() {
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  
+  const { data, isLoading } = useTamboThreadList({
+    order,
+    limit: 20,
+  });
+
+  return (
+    <div>
+      <select value={order} onChange={e => setOrder(e.target.value as 'asc' | 'desc')}>
+        <option value="desc">Newest First</option>
+        <option value="asc">Oldest First</option>
+      </select>
+
+      {isLoading ? (
+        <Spinner />
+      ) : (
+        <ThreadList threads={data.threads} />
+      )}
+    </div>
+  );
+}
+```
+
+### Thread Sidebar
+
+```tsx
+function ThreadSidebar() {
+  const [selectedId, setSelectedId] = useState<string>();
+  const { data, isLoading } = useTamboThreadList({ limit: 100 });
+
+  if (isLoading) return <SidebarSkeleton />;
+
+  return (
+    <aside>
+      <h2>Conversations</h2>
+      <ul>
+        {data.threads.map(thread => (
+          <li
+            key={thread.id}
+            className={selectedId === thread.id ? 'selected' : ''}
+            onClick={() => setSelectedId(thread.id)}
+          >
+            <span>{thread.name || 'New conversation'}</span>
+            <time>{formatRelativeTime(thread.updatedAt)}</time>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="useTamboThread" icon="message" href="/api/react/use-tambo-thread">
+    Fetch a single thread
+  </Card>
+  <Card title="useTambo" icon="comments" href="/api/react/use-tambo">
+    Main hook for thread state
+  </Card>
+  <Card title="Thread Types" icon="code" href="/api/types/threads">
+    Thread type definitions
+  </Card>
+  <Card title="Threads Concept" icon="book" href="/concepts/threads">
+    Learn about threads
+  </Card>
+</CardGroup>

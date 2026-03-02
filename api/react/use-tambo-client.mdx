@@ -1,0 +1,186 @@
+---
+title: useTamboClient
+description: Access the underlying TamboClient instance
+---
+
+## Overview
+
+`useTamboClient` provides direct access to the `TamboClient` instance from the Tambo context. This is useful for advanced use cases requiring lower-level control.
+
+## Import
+
+```typescript
+import { useTamboClient } from '@tambo-ai/react';
+```
+
+## Signature
+
+```typescript
+function useTamboClient(): TamboClient
+```
+
+## Return Value
+
+<ResponseField name="client" type="TamboClient">
+  The TamboClient instance with access to all client methods
+</ResponseField>
+
+## Examples
+
+### Access Client State
+
+```tsx
+import { useTamboClient } from '@tambo-ai/react';
+
+function DebugPanel() {
+  const client = useTamboClient();
+  const state = client.getState();
+
+  return (
+    <div>
+      <h3>Current Thread: {state.currentThreadId}</h3>
+      <h3>Total Threads: {state.threadMap.size}</h3>
+    </div>
+  );
+}
+```
+
+### Subscribe to State Changes
+
+```tsx
+import { useEffect, useState } from 'react';
+import { useTamboClient } from '@tambo-ai/react';
+
+function ThreadCounter() {
+  const client = useTamboClient();
+  const [threadCount, setThreadCount] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = client.subscribe((state) => {
+      setThreadCount(state.threadMap.size);
+    });
+
+    return unsubscribe;
+  }, [client]);
+
+  return <div>Active threads: {threadCount}</div>;
+}
+```
+
+### Start New Thread Programmatically
+
+```tsx
+import { useTamboClient } from '@tambo-ai/react';
+
+function NewThreadButton() {
+  const client = useTamboClient();
+
+  const handleNewThread = () => {
+    client.startNewThread();
+  };
+
+  return (
+    <button onClick={handleNewThread}>
+      Start New Conversation
+    </button>
+  );
+}
+```
+
+### Cancel Running Thread
+
+```tsx
+import { useTamboClient } from '@tambo-ai/react';
+
+function CancelButton({ threadId }: { threadId: string }) {
+  const client = useTamboClient();
+
+  const handleCancel = async () => {
+    await client.cancelRun(threadId);
+  };
+
+  return (
+    <button onClick={handleCancel}>
+      Cancel
+    </button>
+  );
+}
+```
+
+### Fetch Threads Directly
+
+```tsx
+import { useEffect, useState } from 'react';
+import { useTamboClient } from '@tambo-ai/react';
+import type { TamboThread } from '@tambo-ai/react';
+
+function RecentThreads() {
+  const client = useTamboClient();
+  const [threads, setThreads] = useState<TamboThread[]>([]);
+
+  useEffect(() => {
+    const fetchThreads = async () => {
+      const response = await client.threads.list({ limit: 5 });
+      setThreads(response.threads);
+    };
+
+    fetchThreads();
+  }, [client]);
+
+  return (
+    <ul>
+      {threads.map(thread => (
+        <li key={thread.id}>{thread.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Generate Thread Name
+
+```tsx
+import { useTamboClient } from '@tambo-ai/react';
+
+function ThreadNameGenerator({ threadId }: { threadId: string }) {
+  const client = useTamboClient();
+
+  const handleGenerateName = async () => {
+    await client.generateThreadName(threadId);
+  };
+
+  return (
+    <button onClick={handleGenerateName}>
+      Generate Name
+    </button>
+  );
+}
+```
+
+## When to Use
+
+Use `useTamboClient` when you need:
+
+- Direct access to the SDK client for advanced operations
+- To subscribe to raw state changes
+- To call methods not exposed through higher-level hooks
+- To integrate with non-React code
+- Low-level control over thread management
+
+<Note>
+For most use cases, prefer higher-level hooks like `useTambo()`, `useTamboThreadInput()`, etc. Use `useTamboClient` only when you need direct SDK access.
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="TamboClient" icon="cube" href="/api/client/tambo-client">
+    TamboClient API reference
+  </Card>
+  <Card title="useTambo" icon="react" href="/api/react/use-tambo">
+    Main React hook
+  </Card>
+  <Card title="Client Package" icon="package" href="/api/client/types">
+    @tambo-ai/client types
+  </Card>
+</CardGroup>

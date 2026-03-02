@@ -1,0 +1,357 @@
+---
+title: useMessageImages
+description: Hook for managing images in message input
+---
+
+## Overview
+
+`useMessageImages` is a React hook for managing image attachments in message input. It handles file reading, validation, and provides a clean API for adding and removing images.
+
+## Import
+
+```typescript
+import { useMessageImages } from '@tambo-ai/react';
+```
+
+## Signature
+
+```typescript
+function useMessageImages(): UseMessageImagesReturn
+```
+
+## Return Value
+
+<ResponseField name="images" type="StagedImage[]">
+  Array of staged images ready for upload
+</ResponseField>
+
+<ResponseField name="addImage" type="(file: File) => Promise<void>">
+  Add a single image file. Throws if file is not an image.
+</ResponseField>
+
+<ResponseField name="addImages" type="(files: File[]) => Promise<void>">
+  Add multiple image files. Filters out non-image files automatically.
+</ResponseField>
+
+<ResponseField name="removeImage" type="(id: string) => void">
+  Remove an image by its ID
+</ResponseField>
+
+<ResponseField name="clearImages" type="() => void">
+  Remove all staged images
+</ResponseField>
+
+## Types
+
+### StagedImage
+
+```typescript
+interface StagedImage {
+  id: string;          // Unique identifier
+  name: string;        // Original file name
+  dataUrl: string;     // Base64 data URL for preview
+  file: File;          // Original File object
+  size: number;        // File size in bytes
+  type: string;        // MIME type (e.g., "image/png")
+}
+```
+
+## Examples
+
+### Basic Image Upload
+
+```tsx
+import { useMessageImages } from '@tambo-ai/react';
+
+function MessageInput() {
+  const { images, addImage, removeImage, clearImages } = useMessageImages();
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        await addImage(file);
+      } catch (error) {
+        alert('Please select an image file');
+      }
+    }
+  };
+
+  return (
+    <div>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+      />
+      
+      <div className="image-previews">
+        {images.map(image => (
+          <div key={image.id}>
+            <img src={image.dataUrl} alt={image.name} />
+            <button onClick={() => removeImage(image.id)}>×</button>
+          </div>
+        ))}
+      </div>
+
+      {images.length > 0 && (
+        <button onClick={clearImages}>Clear All</button>
+      )}
+    </div>
+  );
+}
+```
+
+### Drag and Drop
+
+```tsx
+import { useState } from 'react';
+import { useMessageImages } from '@tambo-ai/react';
+
+function DragDropImageInput() {
+  const { images, addImages, removeImage } = useMessageImages();
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    try {
+      await addImages(files);
+    } catch (error) {
+      alert('Error adding images');
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  return (
+    <div
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      className={isDragging ? 'dragging' : ''}
+    >
+      <p>Drag and drop images here</p>
+      
+      <div className="previews">
+        {images.map(image => (
+          <ImagePreview
+            key={image.id}
+            image={image}
+            onRemove={() => removeImage(image.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### With Submit Integration
+
+```tsx
+import { useMessageImages, useTamboThreadInput } from '@tambo-ai/react';
+
+function MessageInputWithImages() {
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+  const { images, addImage, clearImages } = useMessageImages();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Submit message with images
+    await submit({
+      images: images.map(img => img.dataUrl),
+    });
+    
+    // Clear images after sending
+    clearImages();
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        placeholder="Type a message..."
+      />
+
+      <input
+        type="file"
+        accept="image/*"
+        onChange={async e => {
+          const file = e.target.files?.[0];
+          if (file) await addImage(file);
+        }}
+      />
+
+      {images.length > 0 && (
+        <div className="attachments">
+          {images.length} image(s) attached
+        </div>
+      )}
+
+      <button type="submit" disabled={isPending}>
+        Send
+      </button>
+    </form>
+  );
+}
+```
+
+### Multiple File Selection
+
+```tsx
+import { useMessageImages } from '@tambo-ai/react';
+
+function MultiImageUpload() {
+  const { images, addImages, removeImage } = useMessageImages();
+
+  const handleMultipleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      await addImages(Array.from(files));
+    }
+  };
+
+  return (
+    <div>
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleMultipleFiles}
+      />
+
+      <div className="grid">
+        {images.map(image => (
+          <div key={image.id} className="image-card">
+            <img src={image.dataUrl} alt={image.name} />
+            <p>{image.name}</p>
+            <p>{(image.size / 1024).toFixed(1)} KB</p>
+            <button onClick={() => removeImage(image.id)}>Remove</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### Image Size Validation
+
+```tsx
+import { useMessageImages } from '@tambo-ai/react';
+
+function ImageInputWithValidation() {
+  const { images, addImage, removeImage } = useMessageImages();
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size
+    if (file.size > MAX_SIZE) {
+      alert('Image must be smaller than 5MB');
+      return;
+    }
+
+    // Validate type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    try {
+      await addImage(file);
+    } catch (error) {
+      alert('Error uploading image');
+    }
+  };
+
+  return (
+    <div>
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        onChange={handleFileChange}
+      />
+      
+      {images.map(image => (
+        <ImagePreview
+          key={image.id}
+          src={image.dataUrl}
+          name={image.name}
+          onRemove={() => removeImage(image.id)}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+## Error Handling
+
+```tsx
+import { useMessageImages } from '@tambo-ai/react';
+import { useState } from 'react';
+
+function ImageInputWithErrors() {
+  const { images, addImage, removeImage } = useMessageImages();
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    
+    try {
+      await addImage(file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add image');
+    }
+  };
+
+  return (
+    <div>
+      <input type="file" accept="image/*" onChange={handleFileChange} />
+      
+      {error && (
+        <div className="error">{error}</div>
+      )}
+
+      <div className="previews">
+        {images.map(image => (
+          <img key={image.id} src={image.dataUrl} alt={image.name} />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="useTamboThreadInput" icon="keyboard" href="/api/react/use-tambo-thread-input">
+    Message input hook
+  </Card>
+  <Card title="useTamboVoice" icon="microphone" href="/api/react/use-tambo-voice">
+    Voice input hook
+  </Card>
+  <Card title="Message Types" icon="code" href="/api/types/messages">
+    Message content types
+  </Card>
+</CardGroup>

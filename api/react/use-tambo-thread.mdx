@@ -1,0 +1,232 @@
+---
+title: useTamboThread
+description: Hook to fetch a single thread by ID
+---
+
+## Overview
+
+`useTamboThread` is a React Query hook for fetching a single thread by ID with automatic caching and refetching.
+
+## Import
+
+```typescript
+import { useTamboThread } from '@tambo-ai/react';
+```
+
+## Signature
+
+```typescript
+function useTamboThread(
+  threadId: string,
+  options?: UseQueryOptions<ThreadRetrieveResponse>
+): UseQueryResult<ThreadRetrieveResponse>
+```
+
+## Parameters
+
+<ParamField path="threadId" type="string" required>
+  The unique identifier of the thread to fetch
+</ParamField>
+
+<ParamField path="options" type="UseQueryOptions<ThreadRetrieveResponse>">
+  Additional React Query options for customizing the query behavior
+
+  <Expandable title="properties">
+    <ResponseField name="enabled" type="boolean">
+      Whether the query should automatically run. Defaults to `true`
+    </ResponseField>
+
+    <ResponseField name="refetchInterval" type="number | false">
+      Interval in milliseconds to automatically refetch data
+    </ResponseField>
+
+    <ResponseField name="refetchOnMount" type="boolean">
+      Whether to refetch on component mount
+    </ResponseField>
+
+    <ResponseField name="refetchOnWindowFocus" type="boolean">
+      Whether to refetch when window regains focus
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+## Return Value
+
+Returns a React Query result object:
+
+<ResponseField name="data" type="ThreadRetrieveResponse">
+  The thread data including all messages and run status
+  
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Thread ID
+    </ResponseField>
+
+    <ResponseField name="name" type="string | null">
+      Thread name (auto-generated or user-set)
+    </ResponseField>
+
+    <ResponseField name="userKey" type="string">
+      User identifier who owns the thread
+    </ResponseField>
+
+    <ResponseField name="runStatus" type="RunStatus">
+      Current run status: `idle`, `running`, `completed`, `failed`, `cancelled`
+    </ResponseField>
+
+    <ResponseField name="messages" type="TamboThreadMessage[]">
+      Array of all messages in the thread
+    </ResponseField>
+
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp of creation
+    </ResponseField>
+
+    <ResponseField name="updatedAt" type="string">
+      ISO 8601 timestamp of last update
+    </ResponseField>
+
+    <ResponseField name="metadata" type="Record<string, unknown>">
+      Custom metadata attached to the thread
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  Whether the initial data is being loaded
+</ResponseField>
+
+<ResponseField name="isError" type="boolean">
+  Whether an error occurred while fetching
+</ResponseField>
+
+<ResponseField name="error" type="Error | null">
+  Error object if the query failed
+</ResponseField>
+
+<ResponseField name="refetch" type="() => Promise<void>">
+  Function to manually refetch the thread data
+</ResponseField>
+
+## Behavior
+
+- **Stale Time**: Thread data is considered stale after 1 second (real-time data)
+- **Authentication**: Automatically disabled until user is identified
+- **Caching**: Uses React Query for intelligent caching and deduplication
+- **Auto-refetch**: Refetches on window focus and reconnection by default
+
+## Examples
+
+### Basic Usage
+
+```tsx
+import { useTamboThread } from '@tambo-ai/react';
+
+function ThreadView({ threadId }: { threadId: string }) {
+  const { data: thread, isLoading, isError } = useTamboThread(threadId);
+
+  if (isLoading) {
+    return <div>Loading thread...</div>;
+  }
+
+  if (isError) {
+    return <div>Error loading thread</div>;
+  }
+
+  return (
+    <div>
+      <h2>{thread.name || 'Untitled Thread'}</h2>
+      <p>Status: {thread.runStatus}</p>
+      <div>
+        {thread.messages.map(message => (
+          <Message key={message.id} message={message} />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### With Polling
+
+Poll for updates every 2 seconds:
+
+```tsx
+function LiveThreadView({ threadId }: { threadId: string }) {
+  const { data: thread, isLoading } = useTamboThread(threadId, {
+    refetchInterval: 2000, // Poll every 2 seconds
+  });
+
+  if (isLoading) return <Spinner />;
+
+  return (
+    <div>
+      <StatusBadge status={thread.runStatus} />
+      <MessageList messages={thread.messages} />
+    </div>
+  );
+}
+```
+
+### Conditional Fetching
+
+Only fetch when a thread ID is selected:
+
+```tsx
+function ThreadDetailPanel() {
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  
+  const { data: thread, isLoading } = useTamboThread(
+    selectedThreadId || '', // Provide empty string as fallback
+    {
+      enabled: selectedThreadId !== null, // Only fetch when ID exists
+    }
+  );
+
+  if (!selectedThreadId) {
+    return <div>Select a thread to view details</div>;
+  }
+
+  if (isLoading) return <Spinner />;
+
+  return <ThreadDetail thread={thread} />;
+}
+```
+
+### Manual Refetch
+
+```tsx
+function ThreadWithRefresh({ threadId }: { threadId: string }) {
+  const { data: thread, isLoading, refetch } = useTamboThread(threadId);
+
+  const handleRefresh = async () => {
+    await refetch();
+  };
+
+  return (
+    <div>
+      <button onClick={handleRefresh} disabled={isLoading}>
+        Refresh Thread
+      </button>
+      {thread && <ThreadContent thread={thread} />}
+    </div>
+  );
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="useTamboThreadList" icon="list" href="/api/react/use-tambo-thread-list">
+    Fetch a list of threads
+  </Card>
+  <Card title="useTambo" icon="message" href="/api/react/use-tambo">
+    Main hook for thread state
+  </Card>
+  <Card title="Thread Types" icon="code" href="/api/types/threads">
+    Thread type definitions
+  </Card>
+  <Card title="Threads Concept" icon="book" href="/concepts/threads">
+    Learn about threads
+  </Card>
+</CardGroup>

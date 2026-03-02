@@ -78,10 +78,14 @@
             "pages": [
               "api/react/provider",
               "api/react/use-tambo",
+              "api/react/use-tambo-thread",
+              "api/react/use-tambo-thread-list",
               "api/react/use-tambo-thread-input",
               "api/react/use-tambo-component-state",
               "api/react/use-tambo-stream-status",
               "api/react/use-tambo-suggestions",
+              "api/react/use-tambo-client",
+              "api/react/use-message-images",
               "api/react/with-interactable"
             ]
           },
