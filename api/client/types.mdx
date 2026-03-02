@@ -1,0 +1,514 @@
+---
+title: Core Types
+description: TypeScript types and interfaces from @tambo-ai/client
+---
+
+## Overview
+
+Core types exported by `@tambo-ai/client` for thread management, messages, streaming, and tool execution.
+
+## Installation
+
+```bash
+npm install @tambo-ai/client
+```
+
+## Thread Types
+
+### TamboThread
+
+Represents a conversation with the AI.
+
+```typescript
+import type { TamboThread } from "@tambo-ai/client";
+
+interface TamboThread {
+  id: string;
+  name?: string;
+  messages: TamboThreadMessage[];
+  status: RunStatus;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  lastRunCancelled: boolean;
+}
+```
+
+<ParamField path="id" type="string">
+  Unique thread identifier
+</ParamField>
+
+<ParamField path="name" type="string">
+  Thread name (optional)
+</ParamField>
+
+<ParamField path="messages" type="TamboThreadMessage[]">
+  Messages in the thread
+</ParamField>
+
+<ParamField path="status" type="RunStatus">
+  Current run status: `"idle"`, `"waiting"`, or `"streaming"`
+</ParamField>
+
+<ParamField path="metadata" type="Record<string, unknown>">
+  Thread metadata (optional)
+</ParamField>
+
+<ParamField path="createdAt" type="string">
+  ISO timestamp when thread was created
+</ParamField>
+
+<ParamField path="updatedAt" type="string">
+  ISO timestamp when thread was last updated
+</ParamField>
+
+<ParamField path="lastRunCancelled" type="boolean">
+  Whether the last run was cancelled (resets to false when a new run starts)
+</ParamField>
+
+### RunStatus
+
+Run status indicates the current state of the thread's run lifecycle.
+
+```typescript
+type RunStatus = "idle" | "waiting" | "streaming";
+```
+
+- `"idle"` - No active run
+- `"waiting"` - Run is waiting (e.g., for tool execution)
+- `"streaming"` - Run is actively streaming
+
+### StreamingState
+
+Tracks the progress of an active run (used internally by TamboClient).
+
+```typescript
+interface StreamingState {
+  status: RunStatus;
+  runId?: string;
+  messageId?: string;
+  startTime?: number;
+  reasoningStartTime?: number;
+  error?: {
+    message: string;
+    code?: string;
+  };
+}
+```
+
+## Message Types
+
+### TamboThreadMessage
+
+A message in a thread.
+
+```typescript
+import type { TamboThreadMessage } from "@tambo-ai/client";
+
+interface TamboThreadMessage {
+  id: string;
+  role: MessageRole;
+  content: Content[];
+  createdAt?: string;
+  metadata?: Record<string, unknown>;
+  parentMessageId?: string;
+  reasoning?: string[];
+  reasoningDurationMS?: number;
+}
+```
+
+<ParamField path="id" type="string">
+  Unique message identifier
+</ParamField>
+
+<ParamField path="role" type="MessageRole">
+  Message role: `"user"`, `"assistant"`, or `"system"`
+</ParamField>
+
+<ParamField path="content" type="Content[]">
+  Content blocks in the message (text, tool calls, components, etc.)
+</ParamField>
+
+<ParamField path="createdAt" type="string">
+  ISO timestamp when message was created (optional for historical messages)
+</ParamField>
+
+<ParamField path="metadata" type="Record<string, unknown>">
+  Message metadata (optional)
+</ParamField>
+
+<ParamField path="parentMessageId" type="string">
+  ID of the parent message, if this was created during generation of another message (e.g., MCP sampling)
+</ParamField>
+
+<ParamField path="reasoning" type="string[]">
+  Reasoning content from the model (transient - only during streaming, not persisted)
+</ParamField>
+
+<ParamField path="reasoningDurationMS" type="number">
+  Duration of the reasoning phase in milliseconds
+</ParamField>
+
+### MessageRole
+
+```typescript
+type MessageRole = "user" | "assistant" | "system";
+```
+
+### Content
+
+Union type of all content block types.
+
+```typescript
+type Content =
+  | TextContent
+  | TamboToolUseContent
+  | ToolResultContent
+  | TamboComponentContent
+  | ResourceContent;
+```
+
+### TextContent
+
+Text content block.
+
+```typescript
+interface TextContent {
+  type: "text";
+  text: string;
+}
+```
+
+### TamboToolUseContent
+
+Tool call content block with computed state properties.
+
+```typescript
+interface TamboToolUseContent {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  hasCompleted?: boolean;
+  statusMessage?: string;
+  tamboDisplayProps?: TamboToolDisplayProps;
+}
+```
+
+<ParamField path="type" type="'tool_use'">
+  Content type discriminator
+</ParamField>
+
+<ParamField path="id" type="string">
+  Unique tool call identifier
+</ParamField>
+
+<ParamField path="name" type="string">
+  Tool name
+</ParamField>
+
+<ParamField path="input" type="Record<string, unknown>">
+  Tool input parameters (internal `_tambo_*` properties removed)
+</ParamField>
+
+<ParamField path="hasCompleted" type="boolean">
+  Whether this tool call has completed (computed by useTambo)
+</ParamField>
+
+<ParamField path="statusMessage" type="string">
+  The status message to display (computed by useTambo)
+</ParamField>
+
+<ParamField path="tamboDisplayProps" type="TamboToolDisplayProps">
+  Extracted Tambo display properties (computed by useTambo)
+</ParamField>
+
+### TamboToolDisplayProps
+
+Special display properties that can be included in tool input.
+
+```typescript
+interface TamboToolDisplayProps {
+  _tambo_statusMessage?: string;
+  _tambo_completionStatusMessage?: string;
+}
+```
+
+### ToolResultContent
+
+Tool result content block.
+
+```typescript
+interface ToolResultContent {
+  type: "tool_result";
+  tool_use_id: string;
+  content: string | Array<TextContent | ResourceContent>;
+  is_error?: boolean;
+}
+```
+
+### TamboComponentContent
+
+Component content block with streaming state.
+
+```typescript
+interface TamboComponentContent {
+  type: "component";
+  id: string;
+  name: string;
+  props: Record<string, unknown>;
+  state?: Record<string, unknown>;
+  streamingState?: ComponentStreamingState;
+}
+```
+
+<ParamField path="type" type="'component'">
+  Content type discriminator
+</ParamField>
+
+<ParamField path="id" type="string">
+  Unique component identifier
+</ParamField>
+
+<ParamField path="name" type="string">
+  Component name
+</ParamField>
+
+<ParamField path="props" type="Record<string, unknown>">
+  Component props
+</ParamField>
+
+<ParamField path="state" type="Record<string, unknown>">
+  Component state (optional)
+</ParamField>
+
+<ParamField path="streamingState" type="ComponentStreamingState">
+  Current streaming state: `"started"`, `"streaming"`, or `"done"`
+</ParamField>
+
+### ComponentStreamingState
+
+```typescript
+type ComponentStreamingState = "started" | "streaming" | "done";
+```
+
+### ResourceContent
+
+Resource content block (e.g., images, files).
+
+```typescript
+interface ResourceContent {
+  type: "resource";
+  resource: {
+    type: string;
+    [key: string]: unknown;
+  };
+}
+```
+
+### InputMessage
+
+Message format for sending to the API.
+
+```typescript
+interface InputMessage {
+  role: "user";
+  content: Array<TextContent | ResourceContent>;
+}
+```
+
+## Event Types
+
+### StreamEvent
+
+Event yielded by TamboStream's async iterator.
+
+```typescript
+import type { StreamEvent } from "@tambo-ai/client";
+
+interface StreamEvent {
+  event: BaseEvent;
+  snapshot: TamboThread;
+}
+```
+
+<ParamField path="event" type="BaseEvent">
+  The raw AG-UI event
+</ParamField>
+
+<ParamField path="snapshot" type="TamboThread">
+  A snapshot of the thread state after this event was processed
+</ParamField>
+
+### Custom Events
+
+Tambo emits custom events during streaming:
+
+#### RunAwaitingInputEvent
+
+```typescript
+interface RunAwaitingInputEvent {
+  type: "custom";
+  name: "tambo.run.awaiting_input";
+  data: {
+    pendingToolCalls: Array<{
+      id: string;
+      name: string;
+      input: Record<string, unknown>;
+    }>;
+  };
+}
+```
+
+#### MessageParentEvent
+
+```typescript
+interface MessageParentEvent {
+  type: "custom";
+  name: "tambo.message.parent";
+  data: {
+    messageId: string;
+  };
+}
+```
+
+#### ComponentStartEvent
+
+```typescript
+interface ComponentStartEvent {
+  type: "custom";
+  name: "tambo.component.start";
+  data: {
+    componentId: string;
+    componentName: string;
+  };
+}
+```
+
+## Tool Types
+
+### TamboTool
+
+Represents a tool that can be called by the AI.
+
+```typescript
+import type { TamboTool } from "@tambo-ai/client";
+
+interface TamboTool {
+  name: string;
+  description: string;
+  inputSchema: JSONSchemaLite | SupportedSchema;
+  execute: (params: Record<string, unknown>) => unknown | Promise<unknown>;
+}
+```
+
+<ParamField path="name" type="string">
+  Tool name
+</ParamField>
+
+<ParamField path="description" type="string">
+  Tool description
+</ParamField>
+
+<ParamField path="inputSchema" type="JSONSchemaLite | SupportedSchema">
+  Input schema (JSON Schema or supported schema library like Zod)
+</ParamField>
+
+<ParamField path="execute" type="(params: Record<string, unknown>) => unknown | Promise<unknown>">
+  Tool execution function
+</ParamField>
+
+### ToolChoice
+
+Controls how the model selects tools.
+
+```typescript
+type ToolChoice =
+  | { type: "auto" }
+  | { type: "any" }
+  | { type: "tool"; name: string };
+```
+
+- `{ type: "auto" }` - Model decides whether to use tools
+- `{ type: "any" }` - Model must use at least one tool
+- `{ type: "tool", name: string }` - Model must use the specified tool
+
+## Auth Types
+
+### TamboAuthState
+
+Auth state computed from client configuration.
+
+```typescript
+import type { TamboAuthState } from "@tambo-ai/client";
+
+type TamboAuthState =
+  | { status: "unauthenticated" }
+  | { status: "identified"; source: "userKey" }
+  | { status: "exchanging" }
+  | { status: "invalid" };
+```
+
+## MCP Types
+
+### McpServerInfo
+
+Configuration for an MCP server.
+
+```typescript
+import type { McpServerInfo } from "@tambo-ai/client";
+
+interface McpServerInfo {
+  url: string;
+  transport: MCPTransport;
+  customHeaders?: Record<string, string>;
+}
+```
+
+<ParamField path="url" type="string">
+  MCP server URL
+</ParamField>
+
+<ParamField path="transport" type="MCPTransport">
+  Transport type: `"sse"` or `"stdio"`
+</ParamField>
+
+<ParamField path="customHeaders" type="Record<string, string>">
+  Custom HTTP headers for SSE transport
+</ParamField>
+
+### MCPTransport
+
+```typescript
+enum MCPTransport {
+  SSE = "sse",
+  STDIO = "stdio"
+}
+```
+
+## Utility Functions
+
+### isTamboCustomEvent()
+
+Type guard to check if an event is a Tambo custom event.
+
+```typescript
+import { isTamboCustomEvent } from "@tambo-ai/client";
+
+if (isTamboCustomEvent(event)) {
+  console.log(event.name); // "tambo.*"
+}
+```
+
+### asTamboCustomEvent()
+
+Narrowing function to cast an event to a Tambo custom event.
+
+```typescript
+import { asTamboCustomEvent } from "@tambo-ai/client";
+
+const customEvent = asTamboCustomEvent(event);
+if (customEvent?.name === "tambo.run.awaiting_input") {
+  console.log(customEvent.data.pendingToolCalls);
+}
+```

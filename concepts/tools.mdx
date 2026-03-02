@@ -1,0 +1,471 @@
+---
+title: Tools
+description: Register client-side tools that the AI can execute to perform actions in the browser
+---
+
+## Overview
+
+Tools are functions that the AI can execute to perform actions. In Tambo, tools run **client-side** in the browser, giving them access to:
+
+- DOM manipulation
+- React state
+- Browser APIs (localStorage, geolocation, etc.)
+- Authenticated API calls
+- User-specific data
+
+Tools complement components—while components render UI, tools perform actions and fetch data.
+
+## TamboTool Type
+
+The `TamboTool` interface defines how to register a tool:
+
+```tsx
+import { TamboTool } from '@tambo-ai/react';
+import { z } from 'zod';
+
+const tools: TamboTool[] = [
+  {
+    name: "getWeather",
+    description: "Fetches current weather for a location",
+    tool: async (params: { location: string }) => {
+      const response = await fetch(
+        `/api/weather?q=${encodeURIComponent(params.location)}`
+      );
+      return await response.json();
+    },
+    inputSchema: z.object({
+      location: z.string().describe("City name or location"),
+    }),
+    outputSchema: z.object({
+      temperature: z.number(),
+      condition: z.string(),
+      humidity: z.number(),
+    }),
+  },
+];
+```
+
+## Tool Fields
+
+### name
+
+Unique identifier for the tool. Should be descriptive and follow camelCase:
+
+```tsx
+name: "searchDocuments"     // Good
+name: "search_documents"    // Also okay
+name: "search"              // Too generic
+```
+
+### description
+
+Explains to the AI what the tool does and when to use it:
+
+```tsx
+description: "Searches the user's documents by keyword and returns matching results with titles, excerpts, and URLs. Use when the user wants to find specific documents."
+```
+
+### tool
+
+The function to execute. Can be sync or async:
+
+```tsx
+tool: async (params) => {
+  // Perform the action
+  const result = await performAction(params);
+  return result;
+}
+```
+
+The function receives validated params matching the `inputSchema`.
+
+### inputSchema
+
+Defines the tool's parameters using Zod:
+
+```tsx
+inputSchema: z.object({
+  query: z.string().describe("Search query"),
+  maxResults: z.number().min(1).max(100).default(10),
+  filters: z.object({
+    dateFrom: z.string().optional(),
+    dateTo: z.string().optional(),
+    author: z.string().optional(),
+  }).optional(),
+})
+```
+
+### outputSchema
+
+Defines the expected return type:
+
+```tsx
+outputSchema: z.object({
+  results: z.array(z.object({
+    title: z.string(),
+    excerpt: z.string(),
+    url: z.string(),
+  })),
+  totalCount: z.number(),
+})
+```
+
+While optional, defining an output schema helps with:
+- Type safety
+- AI understanding of return values
+- Validation of tool responses
+
+### transformToContent (Optional)
+
+Transforms the tool result into content parts for the AI:
+
+```tsx
+transformToContent: (result) => [
+  { type: "text", text: result.text },
+  { type: "image_url", image_url: { url: result.imageUrl } },
+]
+```
+
+By default, results are stringified and wrapped in a text content part. Use `transformToContent` when your tool returns rich content like images or audio.
+
+## Registering Tools
+
+Pass tools to `TamboProvider`:
+
+```tsx
+import { TamboProvider } from '@tambo-ai/react';
+
+const tools: TamboTool[] = [
+  {
+    name: "getCurrentUser",
+    description: "Gets the current user's profile information",
+    tool: async () => {
+      const response = await fetch('/api/user/me');
+      return await response.json();
+    },
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string(),
+    }),
+  },
+  {
+    name: "updateSettings",
+    description: "Updates user settings",
+    tool: async ({ theme, notifications }) => {
+      await fetch('/api/settings', {
+        method: 'POST',
+        body: JSON.stringify({ theme, notifications }),
+      });
+      return { success: true };
+    },
+    inputSchema: z.object({
+      theme: z.enum(["light", "dark"]).optional(),
+      notifications: z.boolean().optional(),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+    }),
+  },
+];
+
+function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+      tools={tools}
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+## Tool Execution Flow
+
+1. **User message** - "What's the weather in San Francisco?"
+2. **AI decides** - Calls `getWeather` tool with `{ location: "San Francisco" }`
+3. **Validation** - Input validated against `inputSchema`
+4. **Execution** - Tool function runs client-side
+5. **Result** - Return value sent back to AI
+6. **Response** - AI incorporates result into its response
+
+## Common Use Cases
+
+### Fetching Data
+
+```tsx
+const tools: TamboTool[] = [
+  {
+    name: "searchProducts",
+    description: "Searches the product catalog",
+    tool: async ({ query, category }) => {
+      const response = await fetch(
+        `/api/products/search?q=${query}&category=${category}`
+      );
+      return await response.json();
+    },
+    inputSchema: z.object({
+      query: z.string(),
+      category: z.string().optional(),
+    }),
+    outputSchema: z.object({
+      products: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        price: z.number(),
+      })),
+    }),
+  },
+];
+```
+
+### Modifying State
+
+```tsx
+const tools: TamboTool[] = [
+  {
+    name: "addToCart",
+    description: "Adds a product to the shopping cart",
+    tool: async ({ productId, quantity }) => {
+      // Access React state through closure
+      addItemToCart({ productId, quantity });
+      return { success: true };
+    },
+    inputSchema: z.object({
+      productId: z.string(),
+      quantity: z.number().min(1).default(1),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+    }),
+  },
+];
+```
+
+### Browser APIs
+
+```tsx
+const tools: TamboTool[] = [
+  {
+    name: "getUserLocation",
+    description: "Gets the user's current geographic location",
+    tool: async () => {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }),
+          (error) => reject(error)
+        );
+      });
+    },
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+    }),
+  },
+];
+```
+
+### DOM Manipulation
+
+```tsx
+const tools: TamboTool[] = [
+  {
+    name: "scrollToSection",
+    description: "Scrolls the page to a specific section",
+    tool: async ({ sectionId }) => {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+        return { success: true };
+      }
+      return { success: false, error: "Section not found" };
+    },
+    inputSchema: z.object({
+      sectionId: z.string(),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      error: z.string().optional(),
+    }),
+  },
+];
+```
+
+## Tool vs Component
+
+When should you use a tool vs a component?
+
+### Use a Tool When:
+
+- **Performing an action** (update cart, send email, save data)
+- **Fetching data** that will be displayed in text or existing UI
+- **No new UI needed** - the result is used in the conversation
+- **Browser APIs** - accessing geolocation, clipboard, etc.
+
+### Use a Component When:
+
+- **Displaying data** in a custom visualization
+- **Rendering UI** - charts, cards, forms, etc.
+- **Interactive elements** that persist across messages
+- **Rich presentation** beyond plain text
+
+### Use Both Together:
+
+Tools can fetch data that components then display:
+
+```tsx
+const tools: TamboTool[] = [
+  {
+    name: "fetchSalesData",
+    description: "Fetches sales data for charting",
+    tool: async ({ startDate, endDate }) => {
+      const response = await fetch(
+        `/api/sales?start=${startDate}&end=${endDate}`
+      );
+      return await response.json();
+    },
+    inputSchema: z.object({
+      startDate: z.string(),
+      endDate: z.string(),
+    }),
+    outputSchema: z.object({
+      data: z.array(z.object({
+        date: z.string(),
+        revenue: z.number(),
+      })),
+    }),
+  },
+];
+
+const components: TamboComponent[] = [
+  {
+    name: "SalesChart",
+    description: "Displays sales data as a line chart",
+    component: SalesChart,
+    propsSchema: z.object({
+      data: z.array(z.object({
+        date: z.string(),
+        revenue: z.number(),
+      })),
+    }),
+  },
+];
+```
+
+User: "Show me sales for last month"
+AI: 
+1. Calls `fetchSalesData` tool
+2. Receives data
+3. Renders `SalesChart` component with the data
+
+## Error Handling
+
+Throw errors from tools to signal failure to the AI:
+
+```tsx
+const tools: TamboTool[] = [
+  {
+    name: "deleteDocument",
+    description: "Permanently deletes a document",
+    tool: async ({ documentId }) => {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete document: ${response.statusText}`);
+      }
+      
+      return { success: true };
+    },
+    inputSchema: z.object({
+      documentId: z.string(),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+    }),
+  },
+];
+```
+
+The AI receives the error and can respond appropriately to the user.
+
+## Best Practices
+
+### Clear Descriptions
+
+```tsx
+// ✅ Good
+description: "Searches user's emails by subject, sender, or content. Returns up to 20 matching emails with preview text."
+
+// ❌ Bad
+description: "Search emails"
+```
+
+### Validate Inputs
+
+Use schema constraints:
+
+```tsx
+inputSchema: z.object({
+  email: z.string().email(),
+  age: z.number().min(0).max(120),
+  role: z.enum(["admin", "user", "guest"]),
+})
+```
+
+### Type Safety
+
+Infer types from schemas:
+
+```tsx
+const inputSchema = z.object({
+  userId: z.string(),
+  message: z.string(),
+});
+
+type ToolInput = z.infer<typeof inputSchema>;
+
+const tools: TamboTool[] = [
+  {
+    name: "sendMessage",
+    tool: async ({ userId, message }: ToolInput) => {
+      // TypeScript knows the types
+    },
+    inputSchema,
+    outputSchema: z.object({ success: z.boolean() }),
+    description: "Sends a message to a user",
+  },
+];
+```
+
+### Handle Async Properly
+
+Always use async/await, never `.then()`:
+
+```tsx
+// ✅ Good
+tool: async ({ query }) => {
+  const response = await fetch(`/api/search?q=${query}`);
+  return await response.json();
+}
+
+// ❌ Bad
+tool: ({ query }) => {
+  return fetch(`/api/search?q=${query}`).then(r => r.json());
+}
+```
+
+## Next Steps
+
+- Learn about [Components](/concepts/components) to display tool results
+- Explore [MCP](/concepts/mcp) for server-side tool integration
+- See [Streaming](/concepts/streaming) for real-time tool execution
+- Check [Authentication](/concepts/authentication) for securing tool calls

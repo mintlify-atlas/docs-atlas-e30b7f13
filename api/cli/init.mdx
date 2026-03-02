@@ -1,0 +1,431 @@
+---
+title: tambo init
+description: Initialize Tambo in an existing project with authentication and component setup
+---
+
+## Overview
+
+The `tambo init` command initializes Tambo in an existing project. It handles authentication, API key setup, project selection, and optional component installation.
+
+## Usage
+
+```bash
+tambo init [options]
+```
+
+## Options
+
+<ParamField path="--api-key" type="string">
+  Provide API key directly (skips authentication flow)
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  Create a new project with this name (requires device auth)
+</ParamField>
+
+<ParamField path="--project-id" type="string">
+  Use an existing project by ID (requires device auth)
+</ParamField>
+
+<ParamField path="--full-send" type="boolean">
+  Enable full-send mode: install starter components automatically
+</ParamField>
+
+<ParamField path="--yes" type="boolean" default="false">
+  Auto-answer yes to all prompts (uses defaults)
+</ParamField>
+
+<ParamField path="--skip-agent-docs" type="boolean" default="false">
+  Skip creating AGENTS.md documentation file
+</ParamField>
+
+<ParamField path="--legacy-peer-deps" type="boolean" default="false">
+  Pass --legacy-peer-deps to npm install (for dependency conflicts)
+</ParamField>
+
+<ParamField path="--no-browser" type="boolean" default="false">
+  Don't open browser during device auth (prints URL instead)
+</ParamField>
+
+## Interactive Mode (Default)
+
+When run without flags, `tambo init` guides you through:
+
+1. **Hosting Choice**: Cloud (recommended) or self-hosted
+2. **Authentication**: Device auth flow or API key paste
+3. **Project Setup**: Select existing project or create new one
+4. **API Key Generation**: Automatically generates and saves API key
+5. **Component Installation** (with `--full-send`): Choose starter components
+
+### Example: Interactive Cloud Setup
+
+```bash
+tambo init
+```
+
+Output:
+
+```
+Initializing tambo. Choose hosting and let's set up your API key.
+
+? Choose where to connect your app:
+  > Cloud (time: 1 minute) — recommended
+    Self-host (time: 5-10 minutes)
+
+Initializing tambo Cloud connection...
+
+Step 1: Authentication
+
+✓ Opening browser for authentication...
+✓ Authenticated as user@example.com
+
+Step 2: Project Setup
+
+? Select a project:
+  > my-existing-project
+    + Create new project
+
+Step 3: Generate API Key
+
+✓ API key generated
+✓ API key saved to .env.local as TAMBO_API_KEY
+
+   Project: my-existing-project
+   Key saved to your .env file
+
+✨ Basic initialization complete!
+
+Next steps:
+  1. Visit our quickstart guide at https://docs.tambo.co/getting-started/quickstart to get started
+  2. Explore our component library at https://ui.tambo.co to discover all available components
+```
+
+## Non-Interactive Mode (for AI Agents)
+
+The CLI detects non-interactive environments (piped stdin/stdout, CI systems) and provides guidance instead of hanging.
+
+### Option 1: Direct API Key
+
+Simplest approach for agents. Get an API key from [console.tambo.co](https://console.tambo.co).
+
+```bash
+tambo init --api-key=sk_...
+```
+
+Output:
+
+```
+✔ API key configured
+✔ API key setup complete. Run 'tambo init' interactively for full project setup.
+```
+
+Exit code: `0`
+
+### Option 2: Create New Project
+
+Authenticates via device auth, creates a project, and generates an API key.
+
+```bash
+tambo init --project-name=my-app
+```
+
+Output:
+
+```
+Initializing with new project via device auth...
+
+🔐 Device Authorization Required
+
+Please visit: https://console.tambo.co/auth/device?code=ABCD-1234
+
+Waiting for authorization...
+
+✔ Authentication successful
+
+Creating project...
+✓ Created project: my-app
+
+Generating API key...
+✓ API key generated
+✔ API key saved to .env.local as TAMBO_API_KEY
+
+   Project: my-app
+   Key saved to your .env file
+
+✨ Initialization complete!
+```
+
+Exit code: `0`
+
+**With `--no-browser` flag** (prints URL instead of opening browser):
+
+```bash
+tambo init --project-name=my-app --no-browser
+```
+
+### Option 3: Use Existing Project
+
+Authenticates via device auth and uses an existing project by ID.
+
+```bash
+tambo init --project-id=abc123
+```
+
+Output:
+
+```
+Initializing with existing project via device auth...
+
+🔐 Device Authorization Required
+
+Please visit: https://console.tambo.co/auth/device?code=ABCD-1234
+
+Waiting for authorization...
+
+✔ Authentication successful
+
+Looking up project...
+✓ Found project: Existing Project Name
+
+Generating API key...
+✓ API key generated
+✔ API key saved to .env.local as TAMBO_API_KEY
+
+   Project: Existing Project Name
+   Key saved to your .env file
+
+✨ Initialization complete!
+```
+
+Exit code: `0`
+
+### Error Handling
+
+If required arguments are missing in non-interactive mode:
+
+```bash
+tambo init  # No flags in non-interactive environment
+```
+
+Output:
+
+```
+API key required in non-interactive mode
+
+You have a few options:
+  npx tambo init --api-key=sk_...              # Get key from https://console.tambo.co
+  npx tambo init --project-name=myapp          # Create new project (requires browser auth)
+  npx tambo init --project-id=abc123           # Use existing project (requires browser auth)
+```
+
+Exit code: `2` (user action required)
+
+## Full-Send Mode
+
+The `--full-send` flag installs starter components during initialization.
+
+```bash
+tambo init --full-send
+```
+
+Additional steps:
+
+1. Prompts for installation path (`src/components` or `components`)
+2. Shows available starter components
+3. Allows multi-select of components to install
+4. Installs selected components with dependencies
+5. Sets up Tailwind CSS and global styles
+6. Creates `tambo.ts` file with component registry
+7. Generates integration code (copied to clipboard)
+
+Available starter components:
+
+- `message-thread-full` - Full-screen chat interface
+- `message-thread-panel` - Split-view chat with workspace
+- `message-thread-collapsible` - Collapsible chat sidebar
+- `control-bar` - Spotlight-style command palette
+
+Output:
+
+```
+🚀 Initializing tambo with full-send mode. Let's get you set up!
+
+? Would you like to use the existing src/ directory for components? (Y/n)
+
+Step 1: Authentication
+...
+
+Step 2: Choose starter components to install
+
+💡 Not sure which component to choose? See them in action at: https://ui.tambo.co
+
+? Select the components you want to install:
+  ✓ message-thread-full - Full-screen chat interface with history and typing indicators
+  ○ message-thread-panel - Split-view chat with integrated workspace
+  ○ message-thread-collapsible - Collapsible chat for sidebars
+  ✓ control-bar - Spotlight-style command palette
+
+✓ Installed message-thread-full
+✓ Installed control-bar
+
+✨ Full-send initialization complete!
+
+Next steps:
+
+1. Add the TamboProvider to your layout file
+
+   📁 File location: app/layout.tsx
+
+   Add the following code:
+
+"use client"; // Important!
+import { TamboProvider } from "@tambo-ai/react";
+import { components } from "../../lib/tambo";
+import { MessageThreadFull } from "@/components/tambo/message-thread-full";
+import { ControlBar } from "@/components/tambo/control-bar";
+// other imports
+
+export default function Page() {
+  // other code
+  return (
+    <div>
+      {/* other components */}
+      <TamboProvider
+        apiKey={process.env.TAMBO_API_KEY ?? ""}
+        components={components}
+      >
+        {/* Tambo components */}
+        <MessageThreadFull />
+        <ControlBar />
+        {/* other Tambo components */}
+      </TamboProvider>
+      {/* other components */}
+    </div>
+  );}
+
+   ✓ TamboProvider component copied to clipboard!
+
+2. Use the installed components
+   Import any of the following components:
+   • MessageThreadFull
+   • ControlBar
+
+3. Documentation
+   Visit https://docs.tambo.co for detailed usage examples
+
+4. Start your app
+   Run 'npm run dev' to see the components in action
+```
+
+## Environment Detection
+
+The CLI automatically detects framework and uses appropriate environment variable:
+
+- **Next.js**: `NEXT_PUBLIC_TAMBO_API_KEY`
+- **Vite**: `VITE_TAMBO_API_KEY`
+- **Other**: `TAMBO_API_KEY`
+
+## Files Created
+
+### .env.local (or .env)
+
+API key is saved to `.env.local` by default. If `.env` exists and `.env.local` doesn't, uses `.env`.
+
+```bash
+# Environment Variables
+TAMBO_API_KEY=sk_your_api_key_here
+```
+
+### lib/tambo.ts (Full-Send Mode)
+
+Created when using `--full-send` or after running `tambo add`.
+
+```typescript
+import { TamboTool } from "@tambo-ai/react";
+
+// Register your tools here
+export const tools: TamboTool[] = [];
+
+// Register your components here
+export const components: Record<string, unknown> = {};
+```
+
+### AGENTS.md (Optional)
+
+Created unless `--skip-agent-docs` is specified. Contains guidance for AI coding agents.
+
+## Exit Codes
+
+- `0` - Success
+- `1` - Error (network failure, invalid arguments, etc.)
+- `2` - User action required (non-interactive mode, missing arguments)
+
+## Self-Hosted Setup
+
+If you choose self-hosted during interactive mode:
+
+```
+Step 1: Self-host setup (time: 5-10 minutes)
+
+You can run the open-source Tambo Cloud API locally or self-host it.
+Repo: https://github.com/tambo-ai/tambo
+
+Quick start with Docker:
+  1. Clone the repo
+  2. Run:
+     ./scripts/cloud/tambo-setup.sh
+     ./scripts/cloud/tambo-start.sh
+     ./scripts/cloud/init-database.sh
+  3. Open http://localhost:3000, create a project, then generate an API key
+
+Manual dev setup:
+  1. Create .env files (see repo .env.example files)
+  2. Start Postgres via ./scripts/cloud/tambo-start.sh
+  3. Initialize DB via ./scripts/cloud/init-database.sh
+  4. npm run dev (web + api)
+
+? Open the self-host repo instructions in your browser? (Y/n)
+
+Step 2: Provide your API key
+
+? How would you like to proceed?
+  > Paste API key (default)
+    Use Cloud instead (takes < 1 minute)
+
+? Paste your self-hosted Tambo API key: ••••••••••••
+
+✔ API key saved to .env.local as TAMBO_API_KEY
+```
+
+## Common Workflows
+
+### Quick Start (Interactive)
+
+```bash
+tambo init --full-send
+```
+
+### CI/CD Pipeline
+
+```bash
+tambo init --api-key=$TAMBO_API_KEY --skip-agent-docs
+```
+
+### Agent/Script Automation
+
+```bash
+# Option 1: Direct API key
+tambo init --api-key=sk_...
+
+# Option 2: Create project (requires browser or --no-browser)
+tambo init --project-name=my-app --no-browser
+
+# Option 3: Use existing project (requires browser or --no-browser)
+tambo init --project-id=abc123 --no-browser
+```
+
+### Overwrite Existing Key
+
+```bash
+tambo init --api-key=sk_new_key  # Prompts to confirm overwrite
+```

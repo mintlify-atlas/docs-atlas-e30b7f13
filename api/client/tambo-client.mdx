@@ -1,0 +1,574 @@
+---
+title: TamboClient
+description: Framework-agnostic client for Tambo AI with streaming, tool execution, and thread management
+---
+
+## Overview
+
+The `TamboClient` class is the main entry point for the `@tambo-ai/client` package. It manages threads, tool registration, streaming, and state without any React dependencies.
+
+**Compatible with `useSyncExternalStore`** for React integration via `client.getState()` and `client.subscribe()`.
+
+## Installation
+
+```bash
+npm install @tambo-ai/client
+```
+
+## Constructor
+
+```typescript
+import { TamboClient } from "@tambo-ai/client";
+
+const client = new TamboClient(options);
+```
+
+<ParamField path="options" type="TamboClientOptions" required>
+  Configuration object for the client
+
+  <ParamField path="options.apiKey" type="string" required>
+    API key for authentication with Tambo
+  </ParamField>
+
+  <ParamField path="options.tamboUrl" type="string">
+    Custom Tambo API URL. Conflicts with `environment`
+  </ParamField>
+
+  <ParamField path="options.environment" type="'production' | 'staging'">
+    Environment preset. Conflicts with `tamboUrl`
+  </ParamField>
+
+  <ParamField path="options.userKey" type="string">
+    User key for identifying the user
+  </ParamField>
+
+  <ParamField path="options.userToken" type="string">
+    User token for token-based auth
+  </ParamField>
+
+  <ParamField path="options.tools" type="TamboTool[]">
+    Tools to register on creation
+  </ParamField>
+
+  <ParamField path="options.mcpServers" type="McpServerInfo[]">
+    MCP servers to connect on initialization
+  </ParamField>
+
+  <ParamField path="options.beforeRun" type="(context: BeforeRunContext) => void | Promise<void>">
+    Callback invoked before each run starts
+  </ParamField>
+</ParamField>
+
+## Core Methods
+
+### run()
+
+Start a new run with a message. Returns a `TamboStream` immediately.
+
+```typescript
+const stream = client.run(message, options);
+```
+
+<ParamField path="message" type="string | InputMessage" required>
+  The message to send (string or InputMessage object)
+</ParamField>
+
+<ParamField path="options" type="RunOptions">
+  Configuration for the run
+
+  <ParamField path="options.threadId" type="string">
+    Thread ID to run on. If omitted, creates a new thread
+  </ParamField>
+
+  <ParamField path="options.autoExecuteTools" type="boolean" default="true">
+    Whether to auto-execute tools when the model requests them
+  </ParamField>
+
+  <ParamField path="options.maxSteps" type="number" default="10">
+    Max tool execution rounds
+  </ParamField>
+
+  <ParamField path="options.toolChoice" type="ToolChoice">
+    How the model should select tools
+  </ParamField>
+
+  <ParamField path="options.debug" type="boolean" default="false">
+    Enable debug logging
+  </ParamField>
+
+  <ParamField path="options.additionalContext" type="Record<string, unknown>">
+    Additional context merged into the message
+  </ParamField>
+
+  <ParamField path="options.signal" type="AbortSignal">
+    AbortSignal for cancellation
+  </ParamField>
+
+  <ParamField path="options.userMessageText" type="string">
+    User message text for optimistic display
+  </ParamField>
+</ParamField>
+
+<ResponseField name="stream" type="TamboStream">
+  A TamboStream for observing the response. See [TamboStream](/api/client/tambo-stream) for details
+</ResponseField>
+
+#### Usage Patterns
+
+**Async Iteration (Stream Mode)**
+
+```typescript
+const stream = client.run("Hello, AI!");
+
+for await (const { event, snapshot } of stream) {
+  console.log(event.type);
+  console.log(snapshot.messages);
+}
+```
+
+**Promise Mode**
+
+```typescript
+const stream = client.run("Hello, AI!");
+const thread = await stream.thread;
+console.log(thread.messages);
+```
+
+### getState()
+
+Get the current client state snapshot. Compatible with `useSyncExternalStore`.
+
+```typescript
+const state = client.getState();
+```
+
+<ResponseField name="state" type="ClientState">
+  Current client state
+
+  <ResponseField name="state.threadMap" type="Record<string, ThreadState>">
+    Map of thread ID to thread state
+  </ResponseField>
+
+  <ResponseField name="state.currentThreadId" type="string">
+    Currently active thread ID
+  </ResponseField>
+</ResponseField>
+
+### subscribe()
+
+Subscribe to state changes. Compatible with `useSyncExternalStore`.
+
+```typescript
+const unsubscribe = client.subscribe(listener);
+```
+
+<ParamField path="listener" type="() => void" required>
+  Callback invoked on state change
+</ParamField>
+
+<ResponseField name="unsubscribe" type="() => void">
+  Function to unsubscribe from state changes
+</ResponseField>
+
+#### React Integration Example
+
+```typescript
+import { useSyncExternalStore } from "react";
+import { TamboClient } from "@tambo-ai/client";
+
+const client = new TamboClient({ apiKey: "your-api-key" });
+
+function MyComponent() {
+  const state = useSyncExternalStore(
+    client.subscribe.bind(client),
+    client.getState.bind(client)
+  );
+
+  return <div>{state.currentThreadId}</div>;
+}
+```
+
+## Thread Management
+
+### switchThread()
+
+Switch to an existing thread. Fetches thread data from the API.
+
+```typescript
+await client.switchThread(threadId);
+```
+
+<ParamField path="threadId" type="string" required>
+  The thread ID to switch to
+</ParamField>
+
+### startNewThread()
+
+Start a new thread. Returns the new thread ID.
+
+```typescript
+const threadId = client.startNewThread();
+```
+
+<ResponseField name="threadId" type="string">
+  The new placeholder thread ID
+</ResponseField>
+
+### getThread()
+
+Get a thread from local state.
+
+```typescript
+const thread = client.getThread(threadId);
+```
+
+<ParamField path="threadId" type="string" required>
+  The thread ID
+</ParamField>
+
+<ResponseField name="thread" type="TamboThread | undefined">
+  The thread, or undefined if not found
+</ResponseField>
+
+### listThreads()
+
+List all threads from the API.
+
+```typescript
+const threads = await client.listThreads();
+```
+
+<ResponseField name="threads" type="TamboThread[]">
+  Array of TamboThread objects
+</ResponseField>
+
+### fetchThread()
+
+Fetch a thread from the API and hydrate it into local state.
+
+```typescript
+const thread = await client.fetchThread(threadId);
+```
+
+<ParamField path="threadId" type="string" required>
+  The thread ID to fetch
+</ParamField>
+
+<ResponseField name="thread" type="TamboThread">
+  The fetched thread
+</ResponseField>
+
+## Tool Registration
+
+### registerTool()
+
+Register a single tool.
+
+```typescript
+client.registerTool(tool);
+```
+
+<ParamField path="tool" type="TamboTool" required>
+  The tool to register
+</ParamField>
+
+### registerTools()
+
+Register multiple tools at once.
+
+```typescript
+client.registerTools(tools);
+```
+
+<ParamField path="tools" type="TamboTool[]" required>
+  The tools to register
+</ParamField>
+
+### registerComponent()
+
+Register a component.
+
+```typescript
+client.registerComponent(name, component);
+```
+
+<ParamField path="name" type="string" required>
+  Component name
+</ParamField>
+
+<ParamField path="component" type="ComponentRegistry[string]" required>
+  The registered component
+</ParamField>
+
+## Run Control
+
+### cancelRun()
+
+Cancel the active run on a thread.
+
+```typescript
+await client.cancelRun(threadId);
+```
+
+<ParamField path="threadId" type="string">
+  The thread whose run to cancel. Defaults to current thread
+</ParamField>
+
+## Thread Naming
+
+### updateThreadName()
+
+Update a thread's name via the API.
+
+```typescript
+await client.updateThreadName(threadId, name);
+```
+
+<ParamField path="threadId" type="string" required>
+  The thread ID
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  The new name
+</ParamField>
+
+### generateThreadName()
+
+Generate a thread name via the API.
+
+```typescript
+const name = await client.generateThreadName(threadId);
+```
+
+<ParamField path="threadId" type="string" required>
+  The thread ID
+</ParamField>
+
+<ResponseField name="name" type="string">
+  The generated name
+</ResponseField>
+
+## MCP Integration
+
+### connectMcpServer()
+
+Connect to an MCP server.
+
+```typescript
+const mcpClient = await client.connectMcpServer(serverInfo);
+```
+
+<ParamField path="serverInfo" type="McpServerInfo" required>
+  The MCP server configuration
+</ParamField>
+
+<ResponseField name="mcpClient" type="MCPClient">
+  The connected MCPClient
+</ResponseField>
+
+### disconnectMcpServer()
+
+Disconnect from an MCP server.
+
+```typescript
+await client.disconnectMcpServer(serverKey);
+```
+
+<ParamField path="serverKey" type="string" required>
+  The server key (from getMcpServerUniqueKey)
+</ParamField>
+
+### getMcpClients()
+
+Get all connected MCP clients.
+
+```typescript
+const clients = client.getMcpClients();
+```
+
+<ResponseField name="clients" type="Record<string, MCPClient>">
+  Record of server key to MCPClient
+</ResponseField>
+
+### getMcpToken()
+
+Get an MCP token for a context key.
+
+```typescript
+const token = await client.getMcpToken(contextKey, threadId);
+```
+
+<ParamField path="contextKey" type="string">
+  The context key
+</ParamField>
+
+<ParamField path="threadId" type="string">
+  Optional thread ID for session-bound tokens
+</ParamField>
+
+<ResponseField name="token" type="{ mcpAccessToken?: string; expiresAt?: number; hasSession?: boolean }">
+  The MCP access token response
+</ResponseField>
+
+## Suggestions
+
+### listSuggestions()
+
+List suggestions for a message.
+
+```typescript
+const suggestions = await client.listSuggestions(messageId, threadId);
+```
+
+<ParamField path="messageId" type="string" required>
+  The message ID
+</ParamField>
+
+<ParamField path="threadId" type="string" required>
+  The thread ID
+</ParamField>
+
+<ResponseField name="suggestions" type="Suggestion[]">
+  Array of suggestions
+</ResponseField>
+
+### generateSuggestions()
+
+Generate suggestions for a message.
+
+```typescript
+const suggestions = await client.generateSuggestions(messageId, threadId, {
+  maxSuggestions: 3
+});
+```
+
+<ParamField path="messageId" type="string" required>
+  The message ID
+</ParamField>
+
+<ParamField path="threadId" type="string" required>
+  The thread ID
+</ParamField>
+
+<ParamField path="options" type="{ maxSuggestions?: number }">
+  Generation options
+</ParamField>
+
+<ResponseField name="suggestions" type="Suggestion[]">
+  Array of generated suggestions
+</ResponseField>
+
+## Context Helpers
+
+### addContextHelper()
+
+Add a context helper that provides additional context on each run.
+
+```typescript
+client.addContextHelper(name, fn);
+```
+
+<ParamField path="name" type="string" required>
+  Unique name for the helper
+</ParamField>
+
+<ParamField path="fn" type="ContextHelperFn" required>
+  Function returning context data
+</ParamField>
+
+### removeContextHelper()
+
+Remove a context helper.
+
+```typescript
+client.removeContextHelper(name);
+```
+
+<ParamField path="name" type="string" required>
+  The helper name to remove
+</ParamField>
+
+## Advanced
+
+### getAuthState()
+
+Compute and return the current auth state.
+
+```typescript
+const authState = client.getAuthState();
+```
+
+<ResponseField name="authState" type="TamboAuthState">
+  The current auth state
+</ResponseField>
+
+### getSdkClient()
+
+Get the underlying SDK client (for advanced use cases).
+
+```typescript
+const sdkClient = client.getSdkClient();
+```
+
+<ResponseField name="sdkClient" type="TamboAI">
+  The TamboAI SDK client
+</ResponseField>
+
+## Types
+
+### TamboClientOptions
+
+```typescript
+interface TamboClientOptions {
+  apiKey: string;
+  tamboUrl?: string;
+  environment?: "production" | "staging";
+  userKey?: string;
+  userToken?: string;
+  tools?: TamboTool[];
+  mcpServers?: McpServerInfo[];
+  beforeRun?: (context: BeforeRunContext) => void | Promise<void>;
+}
+```
+
+### RunOptions
+
+```typescript
+interface RunOptions {
+  threadId?: string;
+  autoExecuteTools?: boolean;
+  maxSteps?: number;
+  toolChoice?: ToolChoice;
+  debug?: boolean;
+  additionalContext?: Record<string, unknown>;
+  signal?: AbortSignal;
+  userMessageText?: string;
+}
+```
+
+### ClientState
+
+```typescript
+interface ClientState {
+  threadMap: Record<string, ThreadState>;
+  currentThreadId: string;
+}
+```
+
+### BeforeRunContext
+
+```typescript
+interface BeforeRunContext {
+  threadId: string | undefined;
+  message: InputMessage;
+  tools: Readonly<Record<string, TamboTool>>;
+}
+```
+
+### ContextHelperFn
+
+```typescript
+type ContextHelperFn = () =>
+  | Record<string, unknown>
+  | Promise<Record<string, unknown>>;
+```

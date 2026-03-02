@@ -1,0 +1,394 @@
+---
+title: Contributing
+description: How to contribute to Tambo AI - development setup, workflow, and guidelines
+---
+
+Thanks for your interest in contributing to Tambo! This guide will help you get started with development and understand our contribution workflow.
+
+## Quick Links
+
+- **Repository**: [github.com/tambo-ai/tambo](https://github.com/tambo-ai/tambo)
+- **Issues**: [github.com/tambo-ai/tambo/issues](https://github.com/tambo-ai/tambo/issues)
+- **Discord**: [discord.gg/dJNvPEHth6](https://discord.gg/dJNvPEHth6)
+- **Docs**: [docs.tambo.co](https://docs.tambo.co)
+
+## Development Setup
+
+### Prerequisites
+
+- **Node.js** >= 22
+- **npm** >= 11
+- **Docker** (for database)
+- **Git**
+
+We recommend using [mise](https://mise.jdx.dev) for automatic version management:
+
+```bash
+# Install mise
+curl https://mise.run | sh
+
+# Install required tools
+mise install
+```
+
+### Clone and Install
+
+```bash
+git clone https://github.com/tambo-ai/tambo.git
+cd tambo
+npm install
+```
+
+### Set Up Environment
+
+```bash
+# Copy environment templates
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env.local
+cp packages/db/.env.example packages/db/.env
+```
+
+### Start Database
+
+Choose **one** option:
+
+#### Option A: Supabase (Recommended)
+
+```bash
+# Start Supabase (includes PostgreSQL)
+npx supabase start
+
+# DATABASE_URL already configured in .env.example:
+# postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+#### Option B: Docker PostgreSQL
+
+```bash
+# One-time setup
+./scripts/cloud/tambo-setup.sh
+
+# Start PostgreSQL
+docker compose --env-file docker.env up postgres -d
+
+# Update DATABASE_URL in all .env files:
+# postgresql://postgres:postgres@localhost:5433/tambo
+```
+
+### Initialize Database
+
+```bash
+npm run db:migrate -w packages/db
+```
+
+### Start Development Servers
+
+```bash
+# For Tambo Cloud (web + API)
+npm run dev:cloud
+# Web: http://localhost:8260
+# API: http://localhost:8261
+
+# For React SDK (showcase + docs)
+npm run dev
+
+# For React SDK development with watch mode
+npm run dev:sdk
+```
+
+### Get a Local API Key
+
+1. Start dev servers: `npm run dev:cloud`
+2. Visit http://localhost:8260 and sign in
+3. Create a project and generate an API key
+4. Add to `apps/web/.env.local`:
+   ```bash
+   NEXT_PUBLIC_TAMBO_API_KEY=your_key
+   ```
+5. Verify: http://localhost:8260/internal/smoketest
+
+## Development Workflow
+
+### Branch Naming
+
+Create branches in the format `<userid>/<feature-name>`:
+
+```bash
+git checkout -b alecf/add-dark-mode
+git checkout -b jane/fix-login-bug
+```
+
+### Making Changes
+
+1. **Write tests** for new functionality
+2. **Run quality checks** before committing:
+
+```bash
+npm run lint
+npm run check-types
+npm test
+```
+
+3. **Follow code style**:
+   - TypeScript strict mode
+   - Functional components (React)
+   - No `any` types
+   - Descriptive variable names
+
+### Commit Messages
+
+We use [Conventional Commits](https://www.conventionalcommits.org):
+
+```
+<type>(scope): <description>
+
+feat(api): add transcript export
+fix(web): prevent duplicate project creation
+chore(db): reorganize migration files
+```
+
+**Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`
+
+**Scopes**: `api`, `web`, `core`, `db`, `react-sdk`, `cli`, `showcase`, `docs`
+
+### Pull Request Process
+
+1. **Push your branch**:
+
+```bash
+git push origin <your-branch>
+```
+
+2. **Open PR** on GitHub with:
+   - Clear title following conventional commits
+   - Description of changes
+   - Link to related issue (if any)
+   - Screenshots/videos for UI changes
+
+3. **PR Requirements**:
+   - All tests pass
+   - No TypeScript errors
+   - Code reviewed by maintainer
+   - Documentation updated (if needed)
+
+4. **Link Issues**:
+
+Include in PR description:
+
+```markdown
+Fixes #123 (GitHub issue)
+Fixes TAM-123 (Linear issue)
+```
+
+## Repository Structure
+
+### Framework Packages
+
+- **`react-sdk/`** - React SDK (`@tambo-ai/react`)
+- **`packages/client/`** - Framework-agnostic client
+- **`cli/`** - Command-line interface
+- **`showcase/`** - Demo application (port 8262)
+- **`docs/`** - Documentation site (port 8263)
+- **`create-tambo-app/`** - App bootstrapper
+
+### Tambo Cloud Platform
+
+- **`apps/web/`** - Next.js UI (port 8260)
+- **`apps/api/`** - NestJS API (port 8261)
+- **`packages/db/`** - Drizzle schema + migrations
+- **`packages/core/`** - Shared utilities
+- **`packages/backend/`** - LLM/agent helpers
+
+## Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm test -- --watch
+
+# Run specific package tests
+npm test -w react-sdk
+npm test -w cli
+```
+
+### Writing Tests
+
+- **Unit tests**: Test individual functions/components
+- **Integration tests**: Test component interactions
+- **E2E tests**: Test full user flows
+
+Example test:
+
+```typescript
+import { render, screen } from "@testing-library/react";
+import { MyComponent } from "./MyComponent";
+
+describe("MyComponent", () => {
+  it("renders correctly", () => {
+    render(<MyComponent />);
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+  });
+});
+```
+
+## Documentation
+
+### Writing Docs
+
+Documentation lives in `docs/`:
+
+```bash
+# Start docs dev server
+npm run dev -w docs
+```
+
+### Doc Guidelines
+
+- Use MDX format
+- Include code examples
+- Keep examples concise
+- Test code examples work
+- Add frontmatter metadata:
+
+```mdx
+---
+title: Page Title
+description: Brief description
+---
+
+# Content here
+```
+
+## Component Library
+
+### Adding Components
+
+Components live in `packages/ui-registry/`:
+
+1. Create component directory:
+   ```
+   packages/ui-registry/src/components/my-component/
+   ```
+
+2. Add component files:
+   ```
+   my-component/
+   ├── config.json
+   ├── my-component.tsx
+   └── README.md
+   ```
+
+3. Configure `config.json`:
+
+```json
+{
+  "name": "my-component",
+  "type": "component",
+  "description": "Component description",
+  "dependencies": ["@tambo-ai/react"],
+  "files": ["my-component.tsx"]
+}
+```
+
+4. Export from package.json:
+
+```json
+{
+  "exports": {
+    "./my-component": "./src/components/my-component/index.ts"
+  }
+}
+```
+
+5. Rebuild CLI:
+
+```bash
+npm run build -w cli
+```
+
+6. Test installation:
+
+```bash
+tambo add my-component
+```
+
+## Code Style
+
+### TypeScript
+
+- Enable strict mode
+- No `any` types - use `unknown` if needed
+- Prefer `interface` for object shapes
+- Use `const` for immutable values
+- Avoid `let` when possible
+
+### React
+
+- Functional components only
+- Use hooks for state management
+- Memoize expensive computations
+- Keep components focused and small
+- Use TypeScript for prop types
+
+### Naming
+
+- **Files**: kebab-case (`my-component.tsx`)
+- **Components**: PascalCase (`MyComponent`)
+- **Hooks**: camelCase (`useTambo`)
+- **Variables**: camelCase (`userName`)
+- **Constants**: UPPER_SNAKE_CASE (`API_URL`)
+
+### Formatting
+
+We use Prettier:
+
+```bash
+npm run format
+```
+
+## Getting Help
+
+### Ask Questions
+
+- **Discord**: [discord.gg/dJNvPEHth6](https://discord.gg/dJNvPEHth6)
+- **Discussions**: [GitHub Discussions](https://github.com/tambo-ai/tambo/discussions)
+
+### Report Issues
+
+1. Search existing issues first
+2. Use issue templates
+3. Include:
+   - Clear description
+   - Steps to reproduce
+   - Expected vs actual behavior
+   - Environment details
+   - Code examples
+
+### Suggest Features
+
+1. Open a discussion first
+2. Describe the use case
+3. Explain why it's valuable
+4. Consider implementation approach
+
+## Code of Conduct
+
+Be respectful and inclusive. We follow the [Contributor Covenant](https://www.contributor-covenant.org/).
+
+## License
+
+- **Core SDK**: MIT License
+- **API**: Apache 2.0 License
+
+By contributing, you agree to license your contributions under the same terms.
+
+## Related Resources
+
+- [Development Setup Details](https://github.com/tambo-ai/tambo/blob/main/CONTRIBUTING.md)
+- [Architecture Guide](https://github.com/tambo-ai/tambo/blob/main/AGENTS.md)
+- [Migration Guide](/resources/migration-guide)
+- [Troubleshooting](/resources/troubleshooting)

@@ -1,0 +1,380 @@
+---
+title: useTamboThreadInput()
+description: Hook for managing thread message input and submission
+---
+
+## Overview
+
+The `useTamboThreadInput()` hook provides shared input state for thread messages. All components using this hook share the same input state, enabling features like suggestions to update the input field directly.
+
+This hook manages text input, image attachments, and message submission with optimistic updates and error handling.
+
+## Import
+
+```tsx
+import { useTamboThreadInput } from '@tambo-ai/react';
+```
+
+## Usage
+
+```tsx
+import { useTamboThreadInput } from '@tambo-ai/react';
+
+function ChatInput() {
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submit();
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        disabled={isPending}
+        placeholder="Type a message..."
+      />
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Sending...' : 'Send'}
+      </button>
+    </form>
+  );
+}
+```
+
+## Return Value
+
+### Input State
+
+<ResponseField name="value" type="string">
+  Current value of the input field.
+</ResponseField>
+
+<ResponseField name="setValue" type="React.Dispatch<React.SetStateAction<string>>">
+  Function to update the input value. Accepts a new string value or a function that receives the previous value.
+  
+  ```tsx
+  setValue('Hello');
+  setValue(prev => prev + ' World');
+  ```
+</ResponseField>
+
+### Submission
+
+<ResponseField name="submit" type="(options?: SubmitOptions) => Promise<{ threadId: string | undefined }>">
+  Submit the current input value as a message. Returns a promise that resolves with the thread ID.
+  
+  Throws an error if:
+  - Authentication is not ready (`isIdentified` is false)
+  - Input is empty and no images are attached
+  
+  The input is optimistically cleared on submission so users can start typing the next message immediately.
+</ResponseField>
+
+<ResponseField name="isPending" type="boolean">
+  Whether a message submission is currently in progress.
+</ResponseField>
+
+<ResponseField name="isSuccess" type="boolean">
+  Whether the last submission completed successfully.
+</ResponseField>
+
+<ResponseField name="isError" type="boolean">
+  Whether the last submission resulted in an error.
+</ResponseField>
+
+<ResponseField name="error" type="Error | null">
+  Error object from the last failed submission, if any.
+</ResponseField>
+
+<ResponseField name="data" type="{ threadId: string | undefined } | undefined">
+  Result data from the last successful submission.
+</ResponseField>
+
+### Image Attachments
+
+<ResponseField name="images" type="StagedImage[]">
+  Array of currently staged images. Each image has:
+  - `id: string` - Unique identifier
+  - `name: string` - File name
+  - `type: string` - MIME type
+  - `dataUrl: string` - Data URL for display
+</ResponseField>
+
+<ResponseField name="addImage" type="(file: File) => Promise<void>">
+  Add a single image file to the staged images. The file is converted to a data URL for preview and transmission.
+</ResponseField>
+
+<ResponseField name="addImages" type="(files: File[]) => Promise<void>">
+  Add multiple image files to the staged images.
+</ResponseField>
+
+<ResponseField name="removeImage" type="(id: string) => void">
+  Remove an image from the staged images by its ID.
+</ResponseField>
+
+<ResponseField name="clearImages" type="() => void">
+  Clear all staged images.
+</ResponseField>
+
+### Thread State
+
+<ResponseField name="threadId" type="string | undefined">
+  Current thread ID being used for input (from stream state). May be undefined for new threads.
+</ResponseField>
+
+<ResponseField name="isDisabled" type="boolean">
+  Whether the input should be disabled. True when submission is pending or authentication is not ready.
+</ResponseField>
+
+### Additional React Query State
+
+<ResponseField name="status" type="'idle' | 'pending' | 'success' | 'error'">
+  Current status of the submission mutation.
+</ResponseField>
+
+<ResponseField name="failureCount" type="number">
+  Number of consecutive failures for the current submission.
+</ResponseField>
+
+<ResponseField name="failureReason" type="Error | null">
+  Error that caused the current failure state.
+</ResponseField>
+
+<ResponseField name="reset" type="() => void">
+  Reset the mutation state to idle.
+</ResponseField>
+
+## Type Definitions
+
+### TamboThreadInputContextProps
+
+```tsx
+interface TamboThreadInputContextProps {
+  // Input state
+  value: string;
+  setValue: React.Dispatch<React.SetStateAction<string>>;
+  
+  // Submission
+  submit: (options?: SubmitOptions) => Promise<{ threadId: string | undefined }>;
+  isPending: boolean;
+  isSuccess: boolean;
+  isError: boolean;
+  error: Error | null;
+  data: { threadId: string | undefined } | undefined;
+  status: 'idle' | 'pending' | 'success' | 'error';
+  
+  // Images
+  images: StagedImage[];
+  addImage: (file: File) => Promise<void>;
+  addImages: (files: File[]) => Promise<void>;
+  removeImage: (id: string) => void;
+  clearImages: () => void;
+  
+  // Thread state
+  threadId: string | undefined;
+  isDisabled: boolean;
+  
+  // React Query state
+  failureCount: number;
+  failureReason: Error | null;
+  reset: () => void;
+}
+```
+
+### SubmitOptions
+
+```tsx
+interface SubmitOptions {
+  /**
+   * Enable debug logging for the stream
+   */
+  debug?: boolean;
+  
+  /**
+   * How the model should use tools. Defaults to "auto".
+   * - "auto": Model decides whether to use tools
+   * - "required": Model must use at least one tool
+   * - "none": Model cannot use tools
+   * - { name: "toolName" }: Model must use the specified tool
+   */
+  toolChoice?: ToolChoice;
+}
+```
+
+### StagedImage
+
+```tsx
+interface StagedImage {
+  id: string;
+  name: string;
+  type: string;
+  dataUrl: string;
+}
+```
+
+## Examples
+
+### With Image Upload
+
+```tsx
+function ChatInputWithImages() {
+  const {
+    value,
+    setValue,
+    submit,
+    isPending,
+    images,
+    addImage,
+    removeImage,
+  } = useTamboThreadInput();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => addImage(file));
+  };
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <div className="image-preview">
+        {images.map(img => (
+          <div key={img.id}>
+            <img src={img.dataUrl} alt={img.name} />
+            <button onClick={() => removeImage(img.id)}>×</button>
+          </div>
+        ))}
+      </div>
+      
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileChange}
+      />
+      
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        disabled={isPending}
+        placeholder="Type a message..."
+      />
+      
+      <button type="submit" disabled={isPending}>
+        Send
+      </button>
+    </form>
+  );
+}
+```
+
+### With Tool Choice
+
+```tsx
+function ToolForcedInput() {
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Force the AI to use the search tool
+    await submit({
+      toolChoice: { name: 'search' }
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search query..."
+        disabled={isPending}
+      />
+      <button type="submit" disabled={isPending}>
+        Search
+      </button>
+    </form>
+  );
+}
+```
+
+### With Error Handling
+
+```tsx
+function ChatInputWithErrors() {
+  const {
+    value,
+    setValue,
+    submit,
+    isPending,
+    isError,
+    error,
+    reset,
+  } = useTamboThreadInput();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await submit();
+    } catch (err) {
+      // Error is already captured in `error` state
+      console.error('Failed to send message:', err);
+    }
+  };
+
+  return (
+    <div>
+      {isError && (
+        <div className="error">
+          <span>Error: {error?.message}</span>
+          <button onClick={reset}>Dismiss</button>
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit}>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={isPending}
+        />
+        <button type="submit" disabled={isPending}>
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+```
+
+### Keyboard Shortcuts
+
+```tsx
+function ChatInputWithShortcuts() {
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Submit on Cmd+Enter or Ctrl+Enter
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      submit();
+    }
+  };
+
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={handleKeyDown}
+      disabled={isPending}
+      placeholder="Type a message (Cmd+Enter to send)..."
+    />
+  );
+}
+```
+
+## Related
+
+- [useTambo()](/api/react/use-tambo) - Main hook for thread state
+- [useTamboSuggestions()](/api/react/use-tambo-suggestions) - AI-powered input suggestions
+- [Input Examples](/examples/chat-interface)

@@ -1,0 +1,221 @@
+---
+title: LLM Providers
+description: Supported language model providers and configuration options for Tambo AI
+---
+
+Tambo supports multiple LLM providers, allowing you to choose the model that best fits your use case. You can configure providers through the Tambo Cloud dashboard or when self-hosting.
+
+## Supported Providers
+
+Tambo works with the following LLM providers:
+
+### OpenAI
+
+Supports GPT-4, GPT-4 Turbo, GPT-3.5 Turbo, and other OpenAI models.
+
+```typescript
+// Configure via environment variable
+OPENAI_API_KEY=sk-...
+```
+
+**Models:**
+- `gpt-4o` - Latest GPT-4 Omni model
+- `gpt-4-turbo` - Fast GPT-4 with 128k context
+- `gpt-4` - Standard GPT-4
+- `gpt-3.5-turbo` - Fast and cost-effective
+
+### Anthropic
+
+Supports Claude 3 family models including Opus, Sonnet, and Haiku.
+
+```typescript
+// Configure via environment variable
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+**Models:**
+- `claude-3-opus` - Most capable Claude model
+- `claude-3-sonnet` - Balanced performance and speed
+- `claude-3-haiku` - Fast and cost-effective
+- `claude-3-5-sonnet` - Latest Sonnet with enhanced capabilities
+
+### Google Gemini
+
+Supports Gemini Pro and other Google AI models.
+
+```typescript
+// Configure via environment variable
+GOOGLE_API_KEY=...
+```
+
+**Models:**
+- `gemini-pro` - Google's most capable model
+- `gemini-pro-vision` - Multimodal with image support
+- `gemini-1.5-pro` - Extended context window
+
+### Mistral AI
+
+Supports Mistral's open and commercial models.
+
+```typescript
+// Configure via environment variable
+MISTRAL_API_KEY=...
+```
+
+**Models:**
+- `mistral-large` - Most capable Mistral model
+- `mistral-medium` - Balanced model
+- `mistral-small` - Fast and efficient
+- `mixtral-8x7b` - Open-source mixture of experts
+
+### Cerebras
+
+Ultra-fast inference with Cerebras hardware acceleration.
+
+```typescript
+// Configure via environment variable
+CEREBRAS_API_KEY=...
+```
+
+**Models:**
+- `cerebras-gpt` - Fast inference on specialized hardware
+
+### OpenAI-Compatible Providers
+
+Tambo supports any provider with an OpenAI-compatible API, including:
+
+- **Together AI** - Fast inference and fine-tuning
+- **Anyscale** - Ray-based LLM serving
+- **Replicate** - Cloud-based model hosting
+- **Local models** via Ollama, LM Studio, etc.
+
+```typescript
+// Configure custom endpoint
+OPENAI_API_BASE=https://api.together.xyz/v1
+OPENAI_API_KEY=...
+```
+
+## Configuration
+
+### Tambo Cloud
+
+When using Tambo Cloud, configure providers in your project settings:
+
+1. Navigate to your project in the Tambo dashboard
+2. Go to **Settings** → **LLM Providers**
+3. Add your API keys for each provider
+4. Select default model for your project
+
+### Self-Hosted
+
+When self-hosting, set environment variables in your `.env` file:
+
+```bash
+# apps/api/.env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...
+MISTRAL_API_KEY=...
+CEREBRAS_API_KEY=...
+
+# Optional: Set fallback key
+FALLBACK_OPENAI_API_KEY=sk-...
+```
+
+## Model Selection
+
+### Per-Request Configuration
+
+Specify model per request using the API:
+
+```typescript
+const response = await tamboClient.messages.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+### Default Model
+
+Set a default model in your project configuration or environment:
+
+```bash
+DEFAULT_MODEL=gpt-4o
+```
+
+## Best Practices
+
+### Model Selection
+
+- **GPT-4o / Claude 3.5 Sonnet** - Best for complex reasoning and component generation
+- **GPT-3.5 Turbo / Claude Haiku** - Fast and cost-effective for simple tasks
+- **Gemini Pro** - Great for long context and multimodal tasks
+- **Mistral** - Good balance of performance and cost
+- **Cerebras** - Ultra-fast inference when speed is critical
+
+### API Key Management
+
+- Store keys securely in environment variables
+- Never commit keys to version control
+- Use different keys for development and production
+- Rotate keys regularly
+- Monitor usage and set spending limits
+
+### Error Handling
+
+```typescript
+try {
+  const response = await tamboClient.messages.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: "Hello!" }],
+  });
+} catch (error) {
+  if (error.status === 401) {
+    console.error("Invalid API key");
+  } else if (error.status === 429) {
+    console.error("Rate limit exceeded");
+  } else {
+    console.error("API error:", error.message);
+  }
+}
+```
+
+## Rate Limits
+
+Each provider has different rate limits:
+
+- **OpenAI**: Varies by tier (free, pay-as-you-go, enterprise)
+- **Anthropic**: Based on API tier and usage
+- **Google**: Requests per minute limit
+- **Mistral**: Based on subscription plan
+- **Cerebras**: Contact for limits
+
+Implement retry logic with exponential backoff:
+
+```typescript
+const maxRetries = 3;
+let retries = 0;
+
+while (retries < maxRetries) {
+  try {
+    return await tamboClient.messages.create(...);
+  } catch (error) {
+    if (error.status === 429 && retries < maxRetries - 1) {
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 1000));
+      retries++;
+    } else {
+      throw error;
+    }
+  }
+}
+```
+
+## Missing a Provider?
+
+If you need support for a specific provider, please [open an issue on GitHub](https://github.com/tambo-ai/tambo/issues) or reach out on [Discord](https://discord.gg/dJNvPEHth6).
+
+## Related Resources
+
+- [Self-Hosting Guide](/deployment/self-hosting)
+- [Environment Variables](/reference/environment-variables)
+- [API Reference](/reference/api)

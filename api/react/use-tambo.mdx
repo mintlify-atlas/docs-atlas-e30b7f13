@@ -1,0 +1,313 @@
+---
+title: useTambo()
+description: Main hook for accessing Tambo thread state, messages, and utilities
+---
+
+## Overview
+
+The `useTambo()` hook is the primary hook for accessing Tambo functionality. It combines thread state, streaming status, component registry, and client access into a single convenient interface.
+
+Messages returned from this hook include a `renderedComponent` property on component content blocks, allowing direct rendering in your UI.
+
+## Import
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+```
+
+## Usage
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function ChatInterface() {
+  const {
+    messages,
+    isStreaming,
+    currentThreadId,
+    registerComponent,
+  } = useTambo();
+
+  return (
+    <div>
+      {messages.map(msg => (
+        <Message key={msg.id} message={msg} />
+      ))}
+      {isStreaming && <LoadingIndicator />}
+    </div>
+  );
+}
+```
+
+## Return Value
+
+### Thread State
+
+<ResponseField name="thread" type="ThreadState | undefined">
+  Current thread state for the active thread, or `undefined` if not loaded.
+</ResponseField>
+
+<ResponseField name="currentThreadId" type="string">
+  Current thread ID (always available - uses "placeholder" for new threads before creation).
+</ResponseField>
+
+<ResponseField name="messages" type="ReactTamboThreadMessage[]">
+  Messages in the current thread. Component content blocks include `renderedComponent` for direct rendering:
+  
+  ```tsx
+  {messages.map(msg => (
+    <div key={msg.id}>
+      {msg.content.map(content => {
+        if (content.type === 'component') {
+          return content.renderedComponent;
+        }
+        // Handle other content types
+      })}
+    </div>
+  ))}
+  ```
+</ResponseField>
+
+### Streaming State
+
+<ResponseField name="streamingState" type="StreamingState">
+  Current streaming state object with detailed status information.
+</ResponseField>
+
+<ResponseField name="isStreaming" type="boolean">
+  Whether the thread is currently streaming a response from the AI.
+</ResponseField>
+
+<ResponseField name="isWaiting" type="boolean">
+  Whether the thread is waiting for the AI to start responding.
+</ResponseField>
+
+<ResponseField name="isIdle" type="boolean">
+  Whether the thread is idle (not streaming or waiting).
+</ResponseField>
+
+### Client & Registry
+
+<ResponseField name="client" type="TamboAI">
+  The Tambo API client instance for direct API access.
+</ResponseField>
+
+<ResponseField name="componentList" type="Map<string, RegisteredComponent>">
+  Map of registered components (name → component definition).
+</ResponseField>
+
+<ResponseField name="toolRegistry" type="Map<string, TamboTool>">
+  Map of registered tools (name → tool definition).
+</ResponseField>
+
+<ResponseField name="registerComponent" type="(component: TamboComponent) => void">
+  Function to register a component with the registry at runtime.
+</ResponseField>
+
+<ResponseField name="registerTool" type="(tool: TamboTool) => void">
+  Function to register a tool with the registry at runtime.
+</ResponseField>
+
+<ResponseField name="registerTools" type="(tools: TamboTool[]) => void">
+  Function to register multiple tools with the registry at runtime.
+</ResponseField>
+
+### Thread Management
+
+<ResponseField name="initThread" type="(threadId: string) => void">
+  Initialize a thread in the stream context. Use this to prepare a thread for receiving events.
+</ResponseField>
+
+<ResponseField name="switchThread" type="(threadId: string) => void">
+  Switch to an existing thread. Updates the current thread context.
+</ResponseField>
+
+<ResponseField name="startNewThread" type="() => void">
+  Start a new thread. Generates a temporary placeholder ID until the thread is created server-side.
+</ResponseField>
+
+<ResponseField name="updateThreadName" type="(threadId: string, name: string) => Promise<void>">
+  Update a thread's name. Useful for implementing manual thread renaming UI.
+  
+  Cache invalidation is best-effort; failures will be logged and won't reject the promise.
+</ResponseField>
+
+<ResponseField name="cancelRun" type="() => Promise<void>">
+  Cancel the current run on this thread. Optimistically updates local state and sends cancellation request to the API.
+  
+  No-op if there's no active run or thread is a placeholder.
+</ResponseField>
+
+### Authentication
+
+<ResponseField name="authState" type="TamboAuthState">
+  Current authentication state. Use this to show auth-related UI or conditionally render features.
+  
+  Possible states:
+  - `{ status: "unauthenticated" }` - No auth configured
+  - `{ status: "invalid" }` - Both userKey and userToken provided
+  - `{ status: "identified", userKey: string }` - Ready to make API calls
+  - `{ status: "error", error: Error }` - Token exchange failed
+</ResponseField>
+
+<ResponseField name="isIdentified" type="boolean">
+  Shorthand for `authState.status === "identified"`. When true, the SDK is ready to make API calls.
+</ResponseField>
+
+### Advanced
+
+<ResponseField name="dispatch" type="(action: StreamAction) => void">
+  Dispatch function for stream events. Advanced usage only - use for custom stream event handling.
+</ResponseField>
+
+## Type Definitions
+
+### UseTamboReturn
+
+```tsx
+interface UseTamboReturn {
+  // Thread state
+  thread: ThreadState | undefined;
+  currentThreadId: string;
+  messages: ReactTamboThreadMessage[];
+  
+  // Streaming state
+  streamingState: StreamingState;
+  isStreaming: boolean;
+  isWaiting: boolean;
+  isIdle: boolean;
+  
+  // Client & registry
+  client: TamboAI;
+  componentList: Map<string, RegisteredComponent>;
+  toolRegistry: Map<string, TamboTool>;
+  registerComponent: (component: TamboComponent) => void;
+  registerTool: (tool: TamboTool) => void;
+  registerTools: (tools: TamboTool[]) => void;
+  
+  // Thread management
+  initThread: (threadId: string) => void;
+  switchThread: (threadId: string) => void;
+  startNewThread: () => void;
+  updateThreadName: (threadId: string, name: string) => Promise<void>;
+  cancelRun: () => Promise<void>;
+  
+  // Authentication
+  authState: TamboAuthState;
+  isIdentified: boolean;
+  
+  // Advanced
+  dispatch: (action: StreamAction) => void;
+}
+```
+
+### ReactTamboThreadMessage
+
+```tsx
+interface ReactTamboThreadMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: Content[];
+  createdAt: string;
+}
+
+type Content = 
+  | TextContent
+  | TamboComponentContent & { renderedComponent?: ReactElement }
+  | TamboToolUseContent
+  | ToolResultContent
+  | ResourceContent;
+```
+
+## Examples
+
+### Basic Message Display
+
+```tsx
+function ChatMessages() {
+  const { messages, isStreaming } = useTambo();
+  
+  return (
+    <div>
+      {messages.map(msg => (
+        <div key={msg.id} className={msg.role}>
+          {msg.content.map((content, i) => {
+            if (content.type === 'text') {
+              return <p key={i}>{content.text}</p>;
+            }
+            if (content.type === 'component') {
+              return <div key={i}>{content.renderedComponent}</div>;
+            }
+            return null;
+          })}
+        </div>
+      ))}
+      {isStreaming && <div className="animate-pulse">AI is typing...</div>}
+    </div>
+  );
+}
+```
+
+### Thread Switching
+
+```tsx
+function ThreadSwitcher({ threadId }: { threadId: string }) {
+  const { switchThread, currentThreadId } = useTambo();
+  
+  const isActive = currentThreadId === threadId;
+  
+  return (
+    <button
+      onClick={() => switchThread(threadId)}
+      className={isActive ? 'active' : ''}
+    >
+      Thread {threadId}
+    </button>
+  );
+}
+```
+
+### Canceling a Run
+
+```tsx
+function CancelButton() {
+  const { isStreaming, cancelRun } = useTambo();
+  
+  if (!isStreaming) return null;
+  
+  return (
+    <button onClick={() => cancelRun()}>
+      Cancel Generation
+    </button>
+  );
+}
+```
+
+### Dynamic Component Registration
+
+```tsx
+function DynamicComponentLoader() {
+  const { registerComponent } = useTambo();
+  
+  const loadAndRegister = async () => {
+    const { WeatherWidget } = await import('./WeatherWidget');
+    registerComponent({
+      name: 'WeatherWidget',
+      description: 'Displays weather information',
+      component: WeatherWidget,
+      propsSchema: z.object({
+        city: z.string(),
+        units: z.enum(['metric', 'imperial'])
+      })
+    });
+  };
+  
+  return <button onClick={loadAndRegister}>Load Weather Widget</button>;
+}
+```
+
+## Related
+
+- [useTamboThreadInput()](/api/react/use-tambo-thread-input) - Manage message input
+- [useTamboComponentState()](/api/react/use-tambo-component-state) - Component state management
+- [useTamboStreamStatus()](/api/react/use-tambo-stream-status) - Granular streaming status

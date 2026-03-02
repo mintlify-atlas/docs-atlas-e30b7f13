@@ -1,0 +1,416 @@
+---
+title: Using useTamboSuggestions
+description: Generate AI-powered suggestions that users can click to continue conversations
+---
+
+## Overview
+
+The `useTamboSuggestions` hook generates contextual prompt suggestions based on the conversation and available components. These suggestions help users discover what they can do next and keep conversations flowing naturally.
+
+## How It Works
+
+1. When the AI sends a message, Tambo analyzes the conversation context
+2. Suggestions are generated based on available components, tools, and conversation history
+3. Users click a suggestion to populate the input field or auto-submit
+4. The AI responds with the suggested action
+
+<Steps>
+
+### Basic Setup
+
+Import and use the hook in your chat component:
+
+```tsx title="components/chat.tsx"
+import { useTamboSuggestions, useTambo } from '@tambo-ai/react';
+
+function Chat() {
+  const { messages } = useTambo();
+  const { suggestions, accept, isLoading } = useTamboSuggestions();
+
+  if (isLoading) {
+    return <div>Loading suggestions...</div>;
+  }
+
+  return (
+    <div>
+      {messages.map((msg) => (
+        <Message key={msg.id} message={msg} />
+      ))}
+      
+      {suggestions.length > 0 && (
+        <div className="suggestions">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.id}
+              onClick={() => accept({ suggestion })}
+            >
+              {suggestion.title}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Auto-Submit Suggestions
+
+Set `shouldSubmit: true` to automatically send the suggestion:
+
+```tsx
+const { suggestions, accept } = useTamboSuggestions();
+
+suggestions.map((suggestion) => (
+  <button
+    key={suggestion.id}
+    onClick={() => accept({ suggestion, shouldSubmit: true })}
+  >
+    {suggestion.title}
+  </button>
+));
+```
+
+### Custom Suggestion Count
+
+Control how many suggestions to generate:
+
+```tsx
+const { suggestions } = useTamboSuggestions({
+  maxSuggestions: 5, // Generate up to 5 suggestions (1-10)
+});
+```
+
+</Steps>
+
+## Configuration Options
+
+### maxSuggestions
+
+Maximum number of suggestions to generate (1-10):
+
+```tsx
+useTamboSuggestions({ maxSuggestions: 3 }); // Default: 3
+```
+
+### autoGenerate
+
+Whether to automatically generate suggestions after assistant messages:
+
+```tsx
+useTamboSuggestions({ autoGenerate: false }); // Default: true
+```
+
+When `false`, call `generate()` manually:
+
+```tsx
+const { generate, isGenerating } = useTamboSuggestions({ autoGenerate: false });
+
+<button onClick={generate} disabled={isGenerating}>
+  Generate Suggestions
+</button>
+```
+
+### queryOptions
+
+Customize React Query behavior:
+
+```tsx
+useTamboSuggestions({
+  queryOptions: {
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: 3,
+  },
+});
+```
+
+## Return Values
+
+### Data
+
+```tsx
+const {
+  suggestions,      // Array of suggestion objects
+  data,            // Raw API response
+  isLoading,       // Initial load state
+  isSuccess,       // Successfully loaded
+  isError,         // Error state
+  error,           // Error object
+  isFetching,      // Currently fetching (includes background)
+} = useTamboSuggestions();
+```
+
+### Actions
+
+```tsx
+const {
+  generate,        // Manually generate suggestions
+  isGenerating,    // Generation in progress
+  generateError,   // Generation error
+  
+  accept,          // Accept a suggestion
+  isAccepting,     // Accepting in progress
+  acceptError,     // Accept error
+} = useTamboSuggestions();
+```
+
+### UI State
+
+```tsx
+const {
+  selectedSuggestionId, // ID of last accepted suggestion
+} = useTamboSuggestions();
+```
+
+## Suggestion Object
+
+Each suggestion has this structure:
+
+```typescript
+interface Suggestion {
+  id: string;                    // Unique identifier
+  title: string;                 // Short title (display this)
+  detailedSuggestion: string;    // Full prompt text (sent to AI)
+}
+```
+
+Example:
+```json
+{
+  "id": "sugg_abc123",
+  "title": "Show sales by region",
+  "detailedSuggestion": "Create a bar chart showing sales data grouped by region for the last quarter"
+}
+```
+
+## Advanced Examples
+
+### Styled Suggestion Chips
+
+```tsx
+import { useTamboSuggestions } from '@tambo-ai/react';
+import { Sparkles } from 'lucide-react';
+
+function SuggestionChips() {
+  const { suggestions, accept, isAccepting, selectedSuggestionId } = useTamboSuggestions();
+
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div className="flex gap-2 flex-wrap mb-4">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion.id}
+          onClick={() => accept({ suggestion, shouldSubmit: true })}
+          disabled={isAccepting}
+          className={`
+            flex items-center gap-2 px-4 py-2 rounded-full
+            border border-gray-300 hover:border-blue-500
+            transition-colors duration-200
+            ${selectedSuggestionId === suggestion.id ? 'bg-blue-50 border-blue-500' : ''}
+          `}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span className="text-sm">{suggestion.title}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### Manual Generation with Loading State
+
+```tsx
+function SuggestionsPanel() {
+  const { suggestions, generate, isGenerating, error } = useTamboSuggestions({
+    autoGenerate: false,
+  });
+
+  return (
+    <div>
+      <button
+        onClick={generate}
+        disabled={isGenerating}
+        className="mb-4 px-4 py-2 bg-blue-500 text-white rounded"
+      >
+        {isGenerating ? 'Generating...' : 'Get Suggestions'}
+      </button>
+      
+      {error && (
+        <div className="text-red-500 mb-4">
+          Failed to generate suggestions: {error.message}
+        </div>
+      )}
+      
+      {suggestions.length > 0 && (
+        <div className="grid gap-2">
+          {suggestions.map((suggestion) => (
+            <SuggestionCard key={suggestion.id} suggestion={suggestion} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Suggestion Cards with Preview
+
+```tsx
+function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
+  const { accept } = useTamboSuggestions();
+  const [showPreview, setShowPreview] = useState(false);
+
+  return (
+    <div className="border rounded-lg p-4 hover:shadow-lg transition-shadow">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="font-medium">{suggestion.title}</h3>
+          {showPreview && (
+            <p className="text-sm text-gray-600 mt-2">
+              {suggestion.detailedSuggestion}
+            </p>
+          )}
+        </div>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowPreview(!showPreview)}
+            className="text-sm text-gray-500 hover:text-gray-700"
+          >
+            {showPreview ? 'Hide' : 'Preview'}
+          </button>
+          
+          <button
+            onClick={() => accept({ suggestion, shouldSubmit: true })}
+            className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+          >
+            Try it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+## Conditional Display
+
+Only show suggestions when appropriate:
+
+```tsx
+function Chat() {
+  const { messages, isStreaming } = useTambo();
+  const { suggestions } = useTamboSuggestions();
+  
+  const latestMessage = messages[messages.length - 1];
+  const shouldShowSuggestions = 
+    !isStreaming &&                              // Not currently streaming
+    latestMessage?.role === 'assistant' &&       // Last message from AI
+    suggestions.length > 0;                      // Have suggestions
+
+  return (
+    <div>
+      {messages.map((msg) => <Message key={msg.id} message={msg} />)}
+      
+      {shouldShowSuggestions && (
+        <SuggestionChips suggestions={suggestions} />
+      )}
+    </div>
+  );
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Show suggestions after AI responses">
+    Suggestions are most useful after the AI has responded, giving users natural next steps.
+  </Accordion>
+
+  <Accordion title="Hide during streaming">
+    Don't show suggestions while the AI is still responding:
+    
+    ```tsx
+    const { isStreaming } = useTambo();
+    const { suggestions } = useTamboSuggestions();
+    
+    if (isStreaming) return null;
+    
+    return <SuggestionChips suggestions={suggestions} />;
+    ```
+  </Accordion>
+
+  <Accordion title="Use clear, action-oriented titles">
+    Suggestion titles should clearly indicate what will happen:
+    - Good: "Show sales by region", "Add a task", "Export to CSV"
+    - Bad: "Click here", "Next", "More"
+  </Accordion>
+
+  <Accordion title="Provide visual feedback">
+    Show when a suggestion is being processed:
+    
+    ```tsx
+    const { isAccepting, selectedSuggestionId } = useTamboSuggestions();
+    
+    <button
+      disabled={isAccepting}
+      className={selectedSuggestionId === suggestion.id ? 'opacity-50' : ''}
+    >
+      {suggestion.title}
+    </button>
+    ```
+  </Accordion>
+
+  <Accordion title="Consider mobile layouts">
+    Use horizontal scrolling or wrapping for mobile:
+    
+    ```tsx
+    <div className="flex gap-2 overflow-x-auto pb-2 md:flex-wrap">
+      {suggestions.map((s) => <SuggestionChip key={s.id} suggestion={s} />)}
+    </div>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No suggestions appearing">
+    - Ensure you're using Tambo v1 API (not v0)
+    - Check that messages exist and latest is from assistant
+    - Verify `autoGenerate` is `true` (default)
+    - Check browser console for errors
+    - Ensure you have components registered
+  </Accordion>
+
+  <Accordion title="Suggestions not relevant">
+    - Register more components to give the AI more options
+    - Add context helpers to provide app state
+    - Increase `maxSuggestions` to get more variety
+  </Accordion>
+
+  <Accordion title="Suggestions taking too long">
+    - Reduce `maxSuggestions` (fewer = faster)
+    - Check your network connection
+    - Verify API endpoint is accessible
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Voice Input" icon="microphone" href="/guides/voice-input">
+    Add voice input to your chat
+  </Card>
+  <Card title="Thread Input Hook" icon="keyboard" href="/reference/react-sdk/hooks/use-tambo-thread-input">
+    Handle user input and submission
+  </Card>
+  <Card title="Component State" icon="database" href="/guides/component-state">
+    Manage state in AI components
+  </Card>
+  <Card title="Context Helpers" icon="circle-info" href="/guides/context-helpers">
+    Improve suggestions with context
+  </Card>
+</CardGroup>

@@ -1,0 +1,484 @@
+---
+title: Model Context Protocol (MCP)
+description: Connect to MCP servers to extend AI capabilities with tools, prompts, and resources
+---
+
+## Overview
+
+Model Context Protocol (MCP) is an open standard for connecting AI assistants to external data sources and tools. Tambo provides full MCP support, allowing you to:
+
+- **Connect to MCP servers** (Linear, Slack, databases, file systems, etc.)
+- **Discover tools** automatically from connected servers
+- **Access resources** (files, database records, API data)
+- **Use prompts** defined by MCP servers
+- **Handle elicitations** for user input requests
+
+MCP runs **server-side** (via Tambo Cloud or self-hosted) and **client-side** (in the browser), giving you flexibility in how you integrate external systems.
+
+## Connecting MCP Servers
+
+Register MCP servers with `TamboProvider`:
+
+```tsx
+import { TamboProvider } from '@tambo-ai/react';
+import { MCPTransport } from '@tambo-ai/react/mcp';
+
+const mcpServers = [
+  {
+    name: "filesystem",
+    url: "http://localhost:8261/mcp",
+    transport: MCPTransport.HTTP,
+  },
+  {
+    name: "linear",
+    url: "https://mcp.linear.app",
+    transport: MCPTransport.SSE,
+    customHeaders: {
+      Authorization: `Bearer ${linearApiKey}`,
+    },
+  },
+];
+
+function App() {
+  return (
+    <TamboProvider
+      apiKey={tamboApiKey}
+      userKey={userId}
+      mcpServers={mcpServers}
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+## MCP Server Configuration
+
+### McpServerInfo
+
+Defines how to connect to an MCP server:
+
+```tsx
+interface McpServerInfo {
+  /** Server name for identification */
+  name: string;
+  
+  /** MCP server URL */
+  url: string;
+  
+  /** Transport protocol */
+  transport: MCPTransport;
+  
+  /** Optional custom headers (e.g., auth) */
+  customHeaders?: Record<string, string>;
+  
+  /** Optional custom handlers */
+  handlers?: Partial<MCPHandlers>;
+}
+```
+
+### Transport Types
+
+Tambo supports two MCP transport protocols:
+
+```tsx
+enum MCPTransport {
+  HTTP = "http",
+  SSE = "sse",
+}
+```
+
+- **HTTP** - Request/response over HTTP
+- **SSE** - Server-Sent Events for real-time updates
+
+### Custom Headers
+
+Pass authentication headers to MCP servers:
+
+```tsx
+const mcpServers = [
+  {
+    name: "private-api",
+    url: "https://api.example.com/mcp",
+    transport: MCPTransport.HTTP,
+    customHeaders: {
+      Authorization: `Bearer ${apiToken}`,
+      "X-API-Key": apiKey,
+    },
+  },
+];
+```
+
+## Server-Side vs Client-Side MCP
+
+Tambo supports MCP in two environments:
+
+### Server-Side (Internal)
+
+MCP servers connected via Tambo Cloud or self-hosted backend:
+
+- Tools execute server-side
+- Access to server resources (databases, file systems)
+- Automatic connection via MCP access token
+- Secure - credentials stay on server
+
+**Automatically enabled** when you use Tambo Cloud - no configuration needed.
+
+### Client-Side (Browser)
+
+MCP servers you register in `mcpServers` prop:
+
+- Tools execute in the browser
+- Access to client-side APIs and user data
+- Manual configuration required
+- Useful for browser-specific tools (clipboard, geolocation)
+
+## MCP Tools
+
+Tools from MCP servers are automatically registered and available to the AI:
+
+```tsx
+// No code needed - tools are auto-discovered!
+// User: "Create a Linear issue for this bug"
+// AI: Calls the Linear MCP server's create_issue tool
+```
+
+Tools are prefixed with the server key when multiple servers are connected:
+
+```
+linear:create_issue
+linear:list_issues
+filesystem:read_file
+filesystem:write_file
+```
+
+### Accessing MCP Servers
+
+Get connected MCP servers:
+
+```tsx
+import { useTamboMcpServers } from '@tambo-ai/react/mcp';
+
+function McpStatus() {
+  const mcpServers = useTamboMcpServers();
+  
+  return (
+    <div>
+      {mcpServers.map((server) => (
+        <div key={server.key}>
+          <h3>{server.name}</h3>
+          {server.client ? (
+            <span>✓ Connected</span>
+          ) : (
+            <span>✗ Failed: {server.connectionError?.message}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## MCP Resources
+
+Resources are data sources that MCP servers expose (files, database records, API data).
+
+### Listing Resources
+
+```tsx
+import { useTamboMcpResourceList } from '@tambo-ai/react/mcp';
+
+function ResourceBrowser() {
+  const { data: resources, isLoading } = useTamboMcpResourceList();
+  
+  if (isLoading) return <Spinner />;
+  
+  return (
+    <ul>
+      {resources?.map((entry) => (
+        <li key={entry.resource.uri}>
+          {entry.resource.name}
+          {entry.server && <span> ({entry.server.name})</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Reading Resources
+
+```tsx
+import { useTamboMcpResource } from '@tambo-ai/react/mcp';
+
+function ResourceViewer({ uri }: { uri: string }) {
+  const { data: resource, isLoading } = useTamboMcpResource(uri);
+  
+  if (isLoading) return <Spinner />;
+  
+  return (
+    <div>
+      {resource?.contents.map((content, i) => (
+        <div key={i}>
+          {content.type === "text" && <p>{content.text}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+Resources are prefixed with the server key:
+
+```
+registry:file://local/data.json
+linear:issue://TEAM-123
+filesystem:file:///Users/name/document.txt
+```
+
+## MCP Prompts
+
+Prompts are pre-defined templates that MCP servers provide.
+
+### Listing Prompts
+
+```tsx
+import { useTamboMcpPromptList } from '@tambo-ai/react/mcp';
+
+function PromptSelector() {
+  const { data: prompts, isLoading } = useTamboMcpPromptList();
+  
+  if (isLoading) return <Spinner />;
+  
+  return (
+    <select>
+      {prompts?.map((entry) => (
+        <option key={entry.prompt.name} value={entry.prompt.name}>
+          {entry.prompt.description}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+### Using Prompts
+
+```tsx
+import { useTamboMcpPrompt } from '@tambo-ai/react/mcp';
+
+function PromptViewer({ promptName }: { promptName: string }) {
+  const { data: prompt } = useTamboMcpPrompt(promptName, {
+    // Prompt arguments
+    issueId: "TEAM-123",
+    includeComments: "true",
+  });
+  
+  if (!prompt) return null;
+  
+  return (
+    <div>
+      {prompt.messages.map((msg, i) => (
+        <div key={i}>
+          {msg.content.type === "text" && <p>{msg.content.text}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## MCP Elicitations
+
+Elicitations allow MCP servers to request user input during tool execution.
+
+### Handling Elicitations
+
+```tsx
+import { useTamboMcpElicitation } from '@tambo-ai/react/mcp';
+
+function ElicitationUI() {
+  const { elicitation, resolveElicitation } = useTamboMcpElicitation();
+  
+  if (!elicitation) return null;
+  
+  const handleAccept = () => {
+    resolveElicitation?.({
+      action: "accept",
+      content: { /* user's response */ },
+    });
+  };
+  
+  const handleReject = () => {
+    resolveElicitation?.({
+      action: "reject",
+    });
+  };
+  
+  return (
+    <div>
+      <p>{elicitation.message}</p>
+      <button onClick={handleAccept}>Accept</button>
+      <button onClick={handleReject}>Reject</button>
+    </div>
+  );
+}
+```
+
+## Custom MCP Handlers
+
+Provide custom handlers for elicitations and sampling:
+
+```tsx
+import { TamboMcpProvider } from '@tambo-ai/react/mcp';
+
+const handlers = {
+  elicitation: async (request, extra, serverInfo) => {
+    // Custom elicitation handling
+    const userResponse = await showDialog(request.message);
+    return {
+      action: "accept",
+      content: userResponse,
+    };
+  },
+  sampling: async (request, extra, serverInfo) => {
+    // Custom sampling handling
+    return {
+      messages: [/* generated messages */],
+    };
+  },
+};
+
+function App() {
+  return (
+    <TamboProvider apiKey={apiKey} userKey={userId}>
+      <TamboMcpProvider handlers={handlers}>
+        <YourApp />
+      </TamboMcpProvider>
+    </TamboProvider>
+  );
+}
+```
+
+## MCP Server Development
+
+Create your own MCP server to expose custom tools and resources:
+
+```typescript
+import { MCPServer } from '@modelcontextprotocol/sdk';
+
+const server = new MCPServer({
+  name: "my-custom-server",
+  version: "1.0.0",
+});
+
+// Register a tool
+server.tool(
+  "calculate",
+  "Performs a calculation",
+  {
+    expression: { type: "string" },
+  },
+  async ({ expression }) => {
+    const result = eval(expression);
+    return { result };
+  }
+);
+
+// Start the server
+server.listen(8080);
+```
+
+See the [MCP documentation](https://modelcontextprotocol.io) for details.
+
+## Tool Namespacing
+
+When multiple MCP servers are connected, tools are prefixed with the server key:
+
+```tsx
+// Single server - no prefix
+"create_issue"
+
+// Multiple servers - prefixed
+"linear:create_issue"
+"github:create_issue"
+```
+
+The AI automatically uses prefixed names when needed.
+
+## Best Practices
+
+### Secure Credentials
+
+Never hardcode API keys:
+
+```tsx
+// ✅ Good - Use environment variables
+const mcpServers = [
+  {
+    name: "linear",
+    url: process.env.LINEAR_MCP_URL!,
+    transport: MCPTransport.HTTP,
+    customHeaders: {
+      Authorization: `Bearer ${process.env.LINEAR_API_KEY}`,
+    },
+  },
+];
+
+// ❌ Bad - Hardcoded credentials
+const mcpServers = [
+  {
+    customHeaders: {
+      Authorization: "Bearer lin_api_abc123",
+    },
+  },
+];
+```
+
+### Handle Connection Failures
+
+Check server connection status:
+
+```tsx
+function McpServerStatus() {
+  const servers = useTamboMcpServers();
+  const failedServers = servers.filter(s => !s.client);
+  
+  if (failedServers.length > 0) {
+    return (
+      <Alert>
+        {failedServers.map(s => (
+          <div key={s.key}>
+            {s.name}: {s.connectionError?.message}
+          </div>
+        ))}
+      </Alert>
+    );
+  }
+  
+  return null;
+}
+```
+
+### Type-Safe Resources
+
+Use type guards to handle different resource types:
+
+```tsx
+import { isMcpResourceEntry } from '@tambo-ai/react/mcp';
+
+function ResourceItem({ entry }: { entry: ListResourceEntry }) {
+  if (isMcpResourceEntry(entry)) {
+    return <div>MCP: {entry.server.name}</div>;
+  }
+  
+  return <div>Local Resource</div>;
+}
+```
+
+## Next Steps
+
+- Learn about [Tools](/concepts/tools) to understand the tool system
+- Explore [Authentication](/concepts/authentication) for securing MCP connections
+- See the [MCP Protocol Spec](https://modelcontextprotocol.io) for server development
+- Check [Streaming](/concepts/streaming) for real-time MCP tool execution

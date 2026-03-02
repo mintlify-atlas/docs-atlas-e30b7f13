@@ -1,0 +1,194 @@
+---
+title: Generative UI
+description: How Tambo AI enables agents to dynamically generate and manage React components through natural language
+---
+
+## What is Generative UI?
+
+Generative UI is the ability for AI agents to dynamically create and manage user interfaces based on natural language input. Instead of static, pre-defined UI flows, the AI selects, renders, and updates React components in response to user requests.
+
+With Tambo, you register components with Zod schemas describing their props. The AI treats these components as tools—when a user asks for something, the agent picks the right component and streams the props to render it.
+
+## How It Works
+
+Tambo converts your React components into tools the AI can call:
+
+1. **Component Registration** - You register components with schemas defining their props
+2. **AI Selection** - The agent analyzes user input and selects appropriate components
+3. **Prop Streaming** - Component props stream in real-time as the AI generates them
+4. **Rendering** - Tambo renders the component with the streamed props
+
+```tsx
+import { TamboComponent } from '@tambo-ai/react';
+import { z } from 'zod';
+
+const components: TamboComponent[] = [
+  {
+    name: "WeatherCard",
+    description: "Displays current weather for a location with temperature, conditions, and forecast",
+    component: WeatherCard,
+    propsSchema: z.object({
+      location: z.string(),
+      temperature: z.number(),
+      condition: z.enum(["sunny", "cloudy", "rainy", "snowy"]),
+      forecast: z.array(z.object({
+        day: z.string(),
+        high: z.number(),
+        low: z.number(),
+      })),
+    }),
+  },
+];
+```
+
+## Generative vs Interactable Components
+
+Tambo supports two types of components:
+
+### Generative Components
+
+**Render once** in response to a message. Best for:
+- Charts and visualizations
+- Data summaries
+- One-time displays
+- Read-only content
+
+Generative components are registered directly in the `components` array passed to `TamboProvider`.
+
+### Interactable Components
+
+**Persist and update** as users refine requests. Best for:
+- Shopping carts
+- Task boards
+- Forms and editors
+- Stateful widgets
+
+Interactable components use `withTamboInteractable()` HOC and can be updated by the AI after rendering. See [Interactable Components](/concepts/interactable-components) for details.
+
+## Component Schema
+
+The schema defines what props the AI can provide:
+
+```tsx
+propsSchema: z.object({
+  // Required fields
+  title: z.string(),
+  items: z.array(z.string()),
+  
+  // Optional fields with defaults
+  sortOrder: z.enum(["asc", "desc"]).optional(),
+  maxItems: z.number().min(1).max(100).default(10),
+  
+  // Complex nested objects
+  config: z.object({
+    showIcons: z.boolean(),
+    theme: z.enum(["light", "dark"]),
+  }),
+})
+```
+
+### Schema Best Practices
+
+- **Clear descriptions** - Add `.describe()` to help the AI understand field purposes
+- **Constraints** - Use `.min()`, `.max()`, `.email()`, etc. for validation
+- **Enums for choices** - Limit options with `z.enum()` instead of free-form strings
+- **Optional with defaults** - Provide sensible defaults for optional fields
+
+## Loading States
+
+Components render progressively as props stream in. Handle partial data:
+
+```tsx
+function DataChart({ data, title }: DataChartProps) {
+  // Data streams in gradually
+  if (!data || data.length === 0) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+  
+  return (
+    <div>
+      <h2>{title ?? "Loading..."}</h2>
+      <Chart data={data} />
+    </div>
+  );
+}
+```
+
+You can also specify a custom loading component:
+
+```tsx
+const components: TamboComponent[] = [
+  {
+    name: "DataChart",
+    description: "Displays data as a chart",
+    component: DataChart,
+    loadingComponent: DataChartSkeleton, // Shown while props stream
+    propsSchema: dataChartSchema,
+  },
+];
+```
+
+## Component Selection
+
+The AI chooses components based on:
+
+1. **Description** - Clear, specific descriptions help the AI make the right choice
+2. **Context** - User's current conversation and previous messages
+3. **Schema** - Available props and their types
+4. **Naming** - Descriptive component names
+
+### Good Descriptions
+
+```tsx
+// Good - Specific and actionable
+description: "Displays sales data as a bar chart with filters for date range and region"
+
+// Bad - Too vague
+description: "Shows data"
+```
+
+### Multiple Similar Components
+
+When you have related components, differentiate them clearly:
+
+```tsx
+const components: TamboComponent[] = [
+  {
+    name: "LineChart",
+    description: "Displays trends over time with a line graph. Best for time-series data.",
+    component: LineChart,
+    propsSchema: lineChartSchema,
+  },
+  {
+    name: "BarChart",
+    description: "Compares values across categories with vertical bars. Best for categorical comparisons.",
+    component: BarChart,
+    propsSchema: barChartSchema,
+  },
+];
+```
+
+## Streaming Behavior
+
+Props stream to components in real-time. Arrays and objects are built incrementally:
+
+```tsx
+function ProductList({ products }: { products: Product[] }) {
+  // products starts as [] and grows as AI streams each item
+  return (
+    <div>
+      {products.map(product => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+      {/* Show loading indicator if we expect more */}
+    </div>
+  );
+}
+```
+
+## Next Steps
+
+- Learn about [Components](/concepts/components) to understand the component lifecycle
+- Explore [Interactable Components](/concepts/interactable-components) for persistent, updatable UIs
+- See [Tools](/concepts/tools) to understand how components relate to tool execution
+- Check [Streaming](/concepts/streaming) for details on handling real-time prop updates

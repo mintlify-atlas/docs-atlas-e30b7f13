@@ -1,0 +1,534 @@
+---
+title: Error Handling Patterns
+description: Handle errors properly in Tambo applications
+---
+
+## Overview
+
+Proper error handling ensures your AI-powered application gracefully handles failures from network issues, API errors, tool failures, and validation problems.
+
+Tambo provides structured error types and patterns for handling errors at different layers of your application.
+
+## Error Types
+
+Tambo exports error types from the TypeScript SDK:
+
+```tsx
+import type { TamboAIError, APIError, RateLimitError } from '@tambo-ai/react';
+```
+
+### TamboAIError
+
+Base error class for all Tambo errors:
+
+```typescript
+class TamboAIError extends Error {
+  message: string;    // Error description
+  name: string;       // Error type name
+}
+```
+
+### APIError
+
+Errors from API requests:
+
+```typescript
+class APIError extends TamboAIError {
+  status: number;     // HTTP status code
+  headers: Headers;   // Response headers
+}
+```
+
+### RateLimitError
+
+Rate limit exceeded errors:
+
+```typescript
+class RateLimitError extends APIError {
+  status: 429;
+}
+```
+
+## Thread Input Errors
+
+Handle errors when submitting messages:
+
+```tsx title="components/chat.tsx"
+import { useTamboThreadInput, useTambo } from '@tambo-ai/react';
+import type { TamboAIError } from '@tambo-ai/react';
+
+function ChatInput() {
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    try {
+      await submit();
+    } catch (err) {
+      if (err instanceof TamboAIError) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded p-3 mb-2">
+          <p className="text-red-800 text-sm">{error}</p>
+        </div>
+      )}
+      
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        disabled={isPending}
+      />
+      <button type="submit" disabled={isPending || !value.trim()}>
+        Send
+      </button>
+    </form>
+  );
+}
+```
+
+## API Errors
+
+Handle different HTTP error statuses:
+
+```tsx
+import type { APIError } from '@tambo-ai/react';
+
+try {
+  await submit();
+} catch (err) {
+  if (err instanceof APIError) {
+    switch (err.status) {
+      case 400:
+        setError('Invalid request. Please check your input.');
+        break;
+      case 401:
+        setError('Authentication failed. Please sign in again.');
+        // Redirect to login
+        break;
+      case 403:
+        setError('You do not have permission to perform this action.');
+        break;
+      case 404:
+        setError('Resource not found.');
+        break;
+      case 429:
+        setError('Rate limit exceeded. Please wait a moment and try again.');
+        break;
+      case 500:
+      case 502:
+      case 503:
+        setError('Server error. Please try again later.');
+        break;
+      default:
+        setError(`Error: ${err.message}`);
+    }
+  }
+}
+```
+
+## Rate Limit Errors
+
+Handle rate limiting with retry logic:
+
+```tsx
+import type { RateLimitError } from '@tambo-ai/react';
+
+function ChatInput() {
+  const { submit } = useTamboThreadInput();
+  const [retryAfter, setRetryAfter] = useState<number | null>(null);
+
+  const handleSubmit = async () => {
+    try {
+      await submit();
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        // Get retry-after header (seconds)
+        const retryHeader = err.headers.get('retry-after');
+        const seconds = retryHeader ? parseInt(retryHeader, 10) : 60;
+        
+        setRetryAfter(seconds);
+        
+        // Auto-retry after delay
+        setTimeout(() => {
+          setRetryAfter(null);
+          handleSubmit(); // Retry
+        }, seconds * 1000);
+      }
+    }
+  };
+
+  if (retryAfter) {
+    return (
+      <div className="text-amber-600">
+        Rate limit exceeded. Retrying in {retryAfter} seconds...
+      </div>
+    );
+  }
+
+  // ... rest of component
+}
+```
+
+## Tool Errors
+
+Handle errors from local tool execution:
+
+```tsx title="lib/tambo-tools.ts"
+import { TamboTool } from '@tambo-ai/react';
+import { z } from 'zod';
+
+const searchTool: TamboTool = {
+  name: 'search',
+  description: 'Search the database',
+  tool: async (params: { query: string }) => {
+    try {
+      const response = await fetch(`/api/search?q=${params.query}`);
+      
+      if (!response.ok) {
+        // Throw descriptive error for the AI
+        if (response.status === 404) {
+          throw new Error('Search endpoint not found');
+        }
+        if (response.status === 403) {
+          throw new Error('You do not have permission to search');
+        }
+        throw new Error(`Search failed: ${response.statusText}`);
+      }
+      
+      const results = await response.json();
+      return results;
+    } catch (err) {
+      // Catch network errors
+      if (err instanceof TypeError) {
+        throw new Error('Network error. Please check your connection.');
+      }
+      // Re-throw other errors
+      throw err;
+    }
+  },
+  inputSchema: z.object({
+    query: z.string(),
+  }),
+  outputSchema: z.any(),
+};
+```
+
+## Voice Input Errors
+
+Handle microphone and transcription errors:
+
+```tsx title="components/voice-button.tsx"
+import { useTamboVoice } from '@tambo-ai/react';
+
+function VoiceButton() {
+  const {
+    startRecording,
+    stopRecording,
+    isRecording,
+    isTranscribing,
+    transcript,
+    transcriptionError,
+    mediaAccessError,
+  } = useTamboVoice();
+
+  const handleStartRecording = () => {
+    try {
+      startRecording();
+    } catch (err) {
+      console.error('Failed to start recording:', err);
+    }
+  };
+
+  return (
+    <div>
+      {mediaAccessError && (
+        <div className="bg-red-50 border border-red-200 rounded p-3 mb-2">
+          <p className="text-red-800 font-medium">Microphone Access Denied</p>
+          <p className="text-red-600 text-sm">{mediaAccessError}</p>
+          <p className="text-gray-600 text-sm mt-2">
+            Please grant microphone access in your browser settings.
+          </p>
+        </div>
+      )}
+      
+      {transcriptionError && (
+        <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-2">
+          <p className="text-amber-800 font-medium">Transcription Failed</p>
+          <p className="text-amber-600 text-sm">{transcriptionError}</p>
+          <button
+            onClick={handleStartRecording}
+            className="mt-2 text-amber-600 hover:text-amber-800 underline text-sm"
+          >
+            Try recording again
+          </button>
+        </div>
+      )}
+      
+      <button
+        onClick={isRecording ? stopRecording : handleStartRecording}
+        disabled={isTranscribing}
+      >
+        {isRecording ? 'Stop' : 'Record'}
+      </button>
+    </div>
+  );
+}
+```
+
+## Component Render Errors
+
+Handle errors in AI-rendered components:
+
+```tsx title="components/error-boundary.tsx"
+import React, { Component, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ComponentErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Component error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        this.props.fallback ?? (
+          <div className="bg-red-50 border border-red-200 rounded p-4">
+            <h3 className="text-red-800 font-medium">Component Error</h3>
+            <p className="text-red-600 text-sm mt-1">
+              {this.state.error?.message ?? 'An error occurred'}
+            </p>
+          </div>
+        )
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Wrap AI components
+<ComponentErrorBoundary>
+  <ComponentRenderer content={message.content} />
+</ComponentErrorBoundary>
+```
+
+## Global Error Handler
+
+Create a centralized error handler:
+
+```tsx title="lib/error-handler.ts"
+import type { TamboAIError, APIError, RateLimitError } from '@tambo-ai/react';
+
+export function handleTamboError(error: unknown): string {
+  // Unknown error types
+  if (!(error instanceof Error)) {
+    console.error('Unknown error:', error);
+    return 'An unexpected error occurred. Please try again.';
+  }
+
+  // Network errors
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    return 'Network error. Please check your connection.';
+  }
+
+  // Rate limit errors
+  if (error.name === 'RateLimitError') {
+    return 'Rate limit exceeded. Please wait a moment and try again.';
+  }
+
+  // API errors
+  if ('status' in error) {
+    const apiError = error as APIError;
+    
+    if (apiError.status >= 500) {
+      return 'Server error. Please try again later.';
+    }
+    
+    if (apiError.status === 401) {
+      return 'Authentication failed. Please sign in again.';
+    }
+    
+    if (apiError.status === 403) {
+      return 'You do not have permission to perform this action.';
+    }
+  }
+
+  // Tambo errors
+  if (error.name === 'TamboAIError') {
+    return error.message;
+  }
+
+  // Generic error
+  return error.message || 'An error occurred. Please try again.';
+}
+
+// Usage
+try {
+  await submit();
+} catch (err) {
+  const message = handleTamboError(err);
+  setError(message);
+}
+```
+
+## Error Recovery
+
+### Retry Logic
+
+```tsx
+import { useState } from 'react';
+
+function useRetry<T>(fn: () => Promise<T>, maxRetries = 3) {
+  const [retryCount, setRetryCount] = useState(0);
+
+  const executeWithRetry = async (): Promise<T> => {
+    try {
+      const result = await fn();
+      setRetryCount(0); // Reset on success
+      return result;
+    } catch (err) {
+      if (retryCount < maxRetries) {
+        setRetryCount(retryCount + 1);
+        // Exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return executeWithRetry();
+      }
+      throw err; // Max retries exceeded
+    }
+  };
+
+  return { executeWithRetry, retryCount };
+}
+
+// Usage
+function ChatInput() {
+  const { submit } = useTamboThreadInput();
+  const { executeWithRetry, retryCount } = useRetry(submit);
+
+  const handleSubmit = async () => {
+    try {
+      await executeWithRetry();
+    } catch (err) {
+      setError('Failed after 3 attempts. Please try again later.');
+    }
+  };
+
+  return (
+    <div>
+      {retryCount > 0 && (
+        <div className="text-amber-600 text-sm">
+          Retrying... (Attempt {retryCount} of 3)
+        </div>
+      )}
+      {/* ... */}
+    </div>
+  );
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Show user-friendly messages">
+    Translate technical errors into helpful messages:
+    
+    ```tsx
+    // Bad
+    setError(err.message); // "ERR_CONNECTION_REFUSED"
+    
+    // Good
+    setError('Unable to connect. Please check your internet connection.');
+    ```
+  </Accordion>
+
+  <Accordion title="Log errors for debugging">
+    Always log errors to console in development:
+    
+    ```tsx
+    catch (err) {
+      console.error('Submit failed:', err);
+      setError(getUserFriendlyMessage(err));
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Provide recovery actions">
+    Tell users what to do next:
+    
+    ```tsx
+    <div className="error-message">
+      <p>Failed to send message</p>
+      <button onClick={retry}>Try Again</button>
+      <button onClick={reportIssue}>Report Issue</button>
+    </div>
+    ```
+  </Accordion>
+
+  <Accordion title="Handle loading states">
+    Show loading indicators during async operations:
+    
+    ```tsx
+    const { isPending } = useTamboThreadInput();
+    
+    <button disabled={isPending}>
+      {isPending ? 'Sending...' : 'Send'}
+    </button>
+    ```
+  </Accordion>
+
+  <Accordion title="Test error scenarios">
+    Test common failure cases:
+    - Network offline
+    - Rate limits
+    - Invalid API keys
+    - Malformed responses
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Register Tools" icon="wrench" href="/guides/register-tools">
+    Add error handling to local tools
+  </Card>
+  <Card title="Voice Input" icon="microphone" href="/guides/voice-input">
+    Handle microphone errors
+  </Card>
+  <Card title="Thread Input Hook" icon="keyboard" href="/reference/react-sdk/hooks/use-tambo-thread-input">
+    Submit messages with error handling
+  </Card>
+  <Card title="User Authentication" icon="key" href="/concepts/user-authentication">
+    Handle auth errors
+  </Card>
+</CardGroup>

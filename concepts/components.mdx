@@ -1,0 +1,338 @@
+---
+title: Components
+description: Understanding the TamboComponent type and how to register React components with the AI agent
+---
+
+## Overview
+
+Components are React components that the AI can dynamically render in response to user messages. Each component is registered with a name, description, and props schema that defines what data it can accept.
+
+## TamboComponent Type
+
+The `TamboComponent` interface defines how components are registered:
+
+```tsx
+interface TamboComponent {
+  /** The React component to render */
+  component: ComponentType<any>;
+  
+  /** Name used by the AI to identify this component */
+  name: string;
+  
+  /** Description explaining the component's purpose and functionality */
+  description: string;
+  
+  /** Zod schema defining the component's props */
+  propsSchema: SupportedSchema;
+  
+  /** Optional loading component shown while props stream */
+  loadingComponent?: ComponentType<any>;
+}
+```
+
+### Component Field
+
+The actual React component to render. Pass the component itself, not an instance:
+
+```tsx
+// ✅ Correct - Pass the component
+const components = [{ component: MyComponent, ... }];
+
+// ❌ Wrong - Don't instantiate
+const components = [{ component: <MyComponent />, ... }];
+```
+
+### Name Field
+
+A unique identifier for the component. Should be:
+- **Descriptive** - Indicates what the component does
+- **CamelCase or PascalCase** - Follows React naming conventions
+- **Unique** - No two components should share the same name
+
+```tsx
+name: "WeatherCard"      // Good
+name: "weather-card"     // Okay but not conventional
+name: "Card"             // Too generic
+```
+
+### Description Field
+
+Explains to the AI when and how to use this component. Should include:
+- **Purpose** - What the component displays or does
+- **Use cases** - When it should be selected
+- **Data requirements** - What kind of data it expects
+
+```tsx
+description: "Displays current weather information including temperature, conditions, and 5-day forecast. Use when the user asks about weather or climate."
+```
+
+### Props Schema
+
+Defines the component's props using Zod or another supported schema library. The schema:
+- **Validates** incoming props
+- **Documents** available props for the AI
+- **Provides types** for TypeScript inference
+
+```tsx
+import { z } from 'zod';
+
+propsSchema: z.object({
+  location: z.string().describe("City name or location"),
+  temperature: z.number().describe("Temperature in degrees"),
+  unit: z.enum(["celsius", "fahrenheit"]).default("celsius"),
+  forecast: z.array(z.object({
+    day: z.string(),
+    high: z.number(),
+    low: z.number(),
+    condition: z.string(),
+  })).optional(),
+})
+```
+
+### Loading Component
+
+Optional component shown while props stream in from the AI:
+
+```tsx
+function WeatherCardSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="h-8 bg-gray-200 rounded w-1/2 mb-4" />
+      <div className="h-4 bg-gray-200 rounded w-full mb-2" />
+      <div className="h-4 bg-gray-200 rounded w-3/4" />
+    </div>
+  );
+}
+
+const components: TamboComponent[] = [
+  {
+    name: "WeatherCard",
+    component: WeatherCard,
+    loadingComponent: WeatherCardSkeleton,
+    propsSchema: weatherSchema,
+    description: "Weather information display",
+  },
+];
+```
+
+## Registering Components
+
+Components are registered by passing them to `TamboProvider`:
+
+```tsx
+import { TamboProvider } from '@tambo-ai/react';
+
+const components: TamboComponent[] = [
+  {
+    name: "WeatherCard",
+    description: "Shows weather forecast",
+    component: WeatherCard,
+    propsSchema: weatherSchema,
+  },
+  {
+    name: "StockChart",
+    description: "Displays stock price history",
+    component: StockChart,
+    propsSchema: stockSchema,
+  },
+];
+
+function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+      components={components}
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+## Component Lifecycle
+
+### 1. Registration
+
+When `TamboProvider` mounts, components are registered with the internal registry and converted to tool definitions for the AI.
+
+### 2. Selection
+
+When a user sends a message, the AI analyzes it and decides which component(s) to render based on:
+- Component descriptions
+- Available props schemas
+- Conversation context
+
+### 3. Streaming
+
+The AI streams props to the selected component:
+1. Component renders with initial/empty props
+2. Props update as they stream in
+3. Component re-renders with new prop values
+4. Stream completes when all props are delivered
+
+### 4. Rendering
+
+The component renders in the message thread as an assistant message with type `"component"`.
+
+## Component Props
+
+Props your component receives come from two sources:
+
+### 1. Schema-defined Props
+
+Props defined in your Zod schema, streamed from the AI:
+
+```tsx
+function WeatherCard({ location, temperature, condition }: WeatherCardProps) {
+  return (
+    <div>
+      <h2>{location}</h2>
+      <p>{temperature}°</p>
+      <p>{condition}</p>
+    </div>
+  );
+}
+```
+
+### 2. Handling Partial Props
+
+During streaming, props may be incomplete. Handle gracefully:
+
+```tsx
+function DataTable({ data, columns }: DataTableProps) {
+  // data and columns stream in gradually
+  if (!data || !columns) {
+    return <Skeleton />;
+  }
+  
+  return (
+    <table>
+      <thead>
+        <tr>
+          {columns.map(col => <th key={col}>{col}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((row, i) => (
+          <tr key={i}>
+            {columns.map(col => <td key={col}>{row[col]}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+## Best Practices
+
+### Write Clear Descriptions
+
+Descriptions help the AI choose the right component:
+
+```tsx
+// ✅ Good - Specific and actionable
+description: "Displays a list of tasks with checkboxes, due dates, and priority indicators. Use when the user wants to view or manage their task list."
+
+// ❌ Bad - Too vague
+description: "A component for tasks"
+```
+
+### Use Descriptive Schema Fields
+
+Add `.describe()` to schema fields to help the AI understand what data to provide:
+
+```tsx
+propsSchema: z.object({
+  tasks: z.array(z.object({
+    title: z.string().describe("Task title or description"),
+    completed: z.boolean().describe("Whether the task is completed"),
+    dueDate: z.string().describe("ISO date string for when task is due"),
+    priority: z.enum(["low", "medium", "high"]).describe("Task priority level"),
+  })),
+})
+```
+
+### Handle Loading States
+
+Show something meaningful while props stream:
+
+```tsx
+function ProductGrid({ products }: { products: Product[] }) {
+  if (products.length === 0) {
+    return <ProductGridSkeleton />;
+  }
+  
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {products.map(product => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+    </div>
+  );
+}
+```
+
+### Avoid Props Not in Schema
+
+Only use props defined in your schema. The AI won't provide props outside the schema:
+
+```tsx
+// ✅ Good - All props in schema
+propsSchema: z.object({
+  title: z.string(),
+  items: z.array(z.string()),
+})
+
+function MyComponent({ title, items }: { title: string; items: string[] }) {
+  return <div>...</div>;
+}
+
+// ❌ Bad - extraProp not in schema
+function MyComponent({ title, items, extraProp }: { ... }) {
+  // extraProp will always be undefined
+}
+```
+
+## TypeScript Integration
+
+Infer prop types from your schema:
+
+```tsx
+import { z } from 'zod';
+
+const weatherSchema = z.object({
+  location: z.string(),
+  temperature: z.number(),
+  condition: z.string(),
+});
+
+type WeatherCardProps = z.infer<typeof weatherSchema>;
+
+function WeatherCard({ location, temperature, condition }: WeatherCardProps) {
+  return (
+    <div>
+      <h2>{location}</h2>
+      <p>{temperature}°</p>
+      <p>{condition}</p>
+    </div>
+  );
+}
+
+const components: TamboComponent[] = [
+  {
+    name: "WeatherCard",
+    description: "Weather display",
+    component: WeatherCard,
+    propsSchema: weatherSchema,
+  },
+];
+```
+
+## Next Steps
+
+- Learn about [Interactable Components](/concepts/interactable-components) for persistent, updatable components
+- Explore [Tools](/concepts/tools) to understand how components relate to the tool system
+- See [Streaming](/concepts/streaming) for details on handling real-time prop updates
+- Check [Generative UI](/concepts/generative-ui) for the high-level concept

@@ -1,0 +1,291 @@
+---
+title: Component Library
+description: Pre-built UI components for AI-powered interfaces from ui.tambo.co
+---
+
+Tambo provides a comprehensive library of pre-built components optimized for generative UI and AI-powered interfaces. These components are available at [ui.tambo.co](https://ui.tambo.co) and can be added to your project using the Tambo CLI.
+
+## Overview
+
+The component library includes:
+
+- **AI Components** - Chat interfaces, message displays, thread management
+- **Data Visualization** - Charts, graphs, and interactive data displays
+- **Interactive Elements** - Forms, inputs, and user interaction patterns
+- **Layout Components** - Containers, grids, and responsive layouts
+- **Utility Components** - Loading states, skeletons, and error boundaries
+
+## Using the Component Library
+
+### Installation via CLI
+
+Add components to your project using the Tambo CLI:
+
+```bash
+# List available components
+tambo list
+
+# Add a specific component
+tambo add message
+
+# Add multiple components
+tambo add message thread-history message-input
+
+# Preview changes without installing
+tambo add message --dry-run
+```
+
+### Component Structure
+
+Each component includes:
+
+- **Component files** - React component implementation
+- **Dependencies** - Required packages and utilities
+- **Styles** - Tailwind CSS classes
+- **Configuration** - Component metadata and options
+
+## Available Components
+
+### Chat & Messaging
+
+#### Message
+
+Display AI and user messages with support for streaming, tool calls, and rich content.
+
+```bash
+tambo add message
+```
+
+**Features:**
+- Markdown rendering with syntax highlighting
+- Streaming text support
+- Tool call display
+- Component rendering
+- Copy to clipboard
+- Reasoning display (for models like o1)
+
+#### Message Input
+
+Advanced text input with file attachments, context helpers, and voice input.
+
+```bash
+tambo add message-input
+```
+
+**Features:**
+- Rich text editing with TipTap
+- File and image attachments
+- Voice input with dictation
+- Context helpers
+- MCP resource suggestions
+- Keyboard shortcuts
+
+#### Thread History
+
+Navigate and manage conversation threads.
+
+```bash
+tambo add thread-history
+```
+
+**Features:**
+- Thread list with search
+- New thread creation
+- Thread renaming
+- Thread deletion
+- Responsive sidebar
+
+### Data Visualization
+
+#### Graph
+
+Display data as interactive charts using Recharts.
+
+```bash
+tambo add graph
+```
+
+**Supported chart types:**
+- Line charts
+- Bar charts
+- Pie charts
+- Area charts
+- Composed charts
+
+```typescript
+const components: TamboComponent[] = [
+  {
+    name: "Graph",
+    description: "Displays data as charts using Recharts library",
+    component: Graph,
+    propsSchema: z.object({
+      data: z.array(z.object({ name: z.string(), value: z.number() })),
+      type: z.enum(["line", "bar", "pie", "area"]),
+    }),
+  },
+];
+```
+
+#### Interactive Map
+
+Display locations and routes using React Leaflet.
+
+```bash
+tambo add interactive-map
+```
+
+**Features:**
+- Location markers
+- Custom icons
+- Zoom controls
+- Tile layer customization
+
+### Forms & Input
+
+#### Elicitation UI
+
+Handle MCP elicitation requests with validation.
+
+```bash
+tambo add elicitation-ui
+```
+
+**Features:**
+- Dynamic form generation
+- Input validation
+- Submit/cancel actions
+- Error handling
+
+### Layout & Structure
+
+#### Message Thread Panel
+
+Container for displaying message threads.
+
+```bash
+tambo add message-thread-panel
+```
+
+**Features:**
+- Responsive layout
+- Auto-scroll to bottom
+- Loading states
+- Empty state handling
+
+## Component Dependencies
+
+The CLI automatically handles dependencies:
+
+```bash
+# CLI installs required packages
+tambo add message
+# Installs: @tambo-ai/react, streamdown, date-fns, etc.
+```
+
+Manual installation (if needed):
+
+```bash
+npm install @tambo-ai/react streamdown date-fns
+```
+
+## Customization
+
+All components use Tailwind CSS and can be customized:
+
+### Using CSS Variables
+
+```css
+/* globals.css */
+:root {
+  --tambo-primary: 220 90% 56%;
+  --tambo-accent: 280 100% 70%;
+}
+```
+
+### Modifying Components
+
+Components are copied to your project, so you can modify them directly:
+
+```tsx
+// components/tambo/message.tsx
+export function Message({ role, content }: MessageProps) {
+  // Add custom logic or styling
+  return (
+    <div className="custom-message-class">
+      {/* Component implementation */}
+    </div>
+  );
+}
+```
+
+## Updating Components
+
+Update components to the latest versions:
+
+```bash
+# Update specific component
+tambo update message
+
+# Update all components
+tambo update
+
+# Preview changes before updating
+tambo update --dry-run
+```
+
+## Showcase Application
+
+See all components in action at the [Tambo Showcase](https://showcase.tambo.co) or run locally:
+
+```bash
+# Clone the repository
+git clone https://github.com/tambo-ai/tambo.git
+cd tambo
+
+# Install dependencies
+npm install
+
+# Run showcase
+npm run dev
+```
+
+Visit `http://localhost:8262` to explore all components.
+
+## Component Registry
+
+The component registry is open source and lives in the [Tambo monorepo](https://github.com/tambo-ai/tambo):
+
+- **Source**: `packages/ui-registry/src/components/`
+- **Configuration**: Each component has a `config.json`
+- **Distribution**: Components are copied to CLI at build time
+
+### Contributing Components
+
+Want to contribute a component? See the [Contributing Guide](/resources/contributing) for details.
+
+## Best Practices
+
+### Component Selection
+
+- Start with `message`, `message-input`, and `message-thread-panel`
+- Add visualization components as needed
+- Use `thread-history` for multi-conversation interfaces
+
+### Styling
+
+- Use Tailwind classes for consistency
+- Define custom colors in CSS variables
+- Keep components responsive
+
+### Performance
+
+- Lazy load heavy components
+- Memoize expensive computations
+- Use React.memo for static components
+
+## Related Resources
+
+- [CLI Reference](/reference/cli)
+- [Component Props](/reference/react-sdk/components)
+- [Styling Guide](/guides/customize-ui/styling)
+- [Contributing Guide](/resources/contributing)

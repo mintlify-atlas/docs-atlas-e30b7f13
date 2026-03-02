@@ -1,0 +1,432 @@
+---
+title: Authentication
+description: User authentication and thread scoping with userKey and userToken
+---
+
+## Overview
+
+Tambo requires authentication to identify users and scope threads. You must provide either:
+
+- **`userKey`** - A user identifier (server-side or trusted environments)
+- **`userToken`** - An OAuth access token (client-side with token exchange)
+
+All thread operations (create, list, fetch) only return threads owned by the authenticated user.
+
+## Authentication Methods
+
+### userKey (Server-Side)
+
+Use `userKey` when you control user identity on the server:
+
+```tsx
+import { TamboProvider } from '@tambo-ai/react';
+
+function App() {
+  const currentUserId = getCurrentUser().id; // Your auth system
+  
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey={currentUserId}  // User identifier from your backend
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+**Best for:**
+- Server-rendered apps (Next.js App Router)
+- Trusted environments where user ID is verified server-side
+- Backend-controlled authentication
+
+### userToken (Client-Side)
+
+Use `userToken` with OAuth or JWT tokens:
+
+```tsx
+import { TamboProvider } from '@tambo-ai/react';
+import { useAuth } from './auth';
+
+function App() {
+  const { accessToken } = useAuth(); // Your OAuth provider
+  
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userToken={accessToken}  // OAuth access token
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+**Best for:**
+- Client-side apps (SPA, React, Vite)
+- OAuth providers (Auth0, Clerk, Firebase Auth)
+- Token-based authentication
+
+Tambo exchanges the token server-side and extracts the user identity.
+
+## Authentication States
+
+Monitor auth state with `useTamboAuthState()`:
+
+```tsx
+import { useTamboAuthState } from '@tambo-ai/react';
+
+function AuthStatus() {
+  const authState = useTamboAuthState();
+  
+  switch (authState.status) {
+    case "identified":
+      return <div>Authenticated via {authState.source}</div>;
+    
+    case "unauthenticated":
+      return <div>No authentication provided</div>;
+    
+    case "exchanging":
+      return <div>Exchanging token...</div>;
+    
+    case "invalid":
+      return <div>Both userKey and userToken provided - use only one</div>;
+    
+    case "error":
+      return <div>Auth error: {authState.error.message}</div>;
+  }
+}
+```
+
+### Auth State Types
+
+```tsx
+type TamboAuthState =
+  | { status: "identified"; source: "userKey" | "tokenExchange" }
+  | { status: "unauthenticated" }
+  | { status: "exchanging" }
+  | { status: "invalid" }
+  | { status: "error"; error: Error };
+```
+
+## Thread Scoping
+
+Threads are automatically scoped to the authenticated user:
+
+```tsx
+function ThreadList() {
+  // Only returns threads for current user
+  const { data: threads } = useTamboThreadList();
+  
+  return (
+    <ul>
+      {threads?.map((thread) => (
+        <li key={thread.id}>{thread.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+**Important:** You cannot access threads from other users. The API filters by user identity automatically.
+
+## Token Exchange Flow
+
+When using `userToken`, Tambo performs a token exchange:
+
+1. **Client** provides OAuth access token
+2. **Tambo** validates token with OAuth provider
+3. **Tambo** extracts user identity (sub, email, etc.)
+4. **Tambo** issues internal session token
+5. **Client** uses session token for API calls
+
+Token exchange happens automatically—no code needed.
+
+## Auth Warnings
+
+`TamboProvider` emits console warnings for common auth issues:
+
+### Missing Authentication
+
+```
+[TamboProvider] Neither userKey nor userToken provided.
+API requests will be blocked until authentication is configured.
+```
+
+**Fix:** Add `userKey` or `userToken` prop.
+
+### Invalid Configuration
+
+```
+[TamboProvider] Both userKey and userToken were provided.
+You must provide one or the other, not both.
+```
+
+**Fix:** Remove either `userKey` or `userToken`.
+
+### Token Exchange Error
+
+```
+[TamboProvider] Token exchange failed: Invalid token
+```
+
+**Fix:** Verify the token is valid and not expired.
+
+## Integration Examples
+
+### Next.js App Router
+
+Server-side user identification:
+
+```tsx
+// app/layout.tsx
+import { auth } from '@/lib/auth';
+import { TamboProvider } from '@tambo-ai/react';
+
+export default async function RootLayout({ children }) {
+  const session = await auth();
+  
+  return (
+    <html>
+      <body>
+        <TamboProvider
+          apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+          userKey={session?.user?.id}  // Server-side user ID
+        >
+          {children}
+        </TamboProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### Clerk
+
+OAuth token from Clerk:
+
+```tsx
+import { useAuth } from '@clerk/nextjs';
+import { TamboProvider } from '@tambo-ai/react';
+
+function App() {
+  const { getToken } = useAuth();
+  const [token, setToken] = useState<string | null>(null);
+  
+  useEffect(() => {
+    getToken().then(setToken);
+  }, [getToken]);
+  
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userToken={token ?? undefined}
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+### Auth0
+
+OAuth token from Auth0:
+
+```tsx
+import { useAuth0 } from '@auth0/auth0-react';
+import { TamboProvider } from '@tambo-ai/react';
+
+function App() {
+  const { getAccessTokenSilently } = useAuth0();
+  const [token, setToken] = useState<string | null>(null);
+  
+  useEffect(() => {
+    getAccessTokenSilently().then(setToken);
+  }, [getAccessTokenSilently]);
+  
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userToken={token ?? undefined}
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+### Firebase Auth
+
+OAuth token from Firebase:
+
+```tsx
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { TamboProvider } from '@tambo-ai/react';
+
+function App() {
+  const [token, setToken] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const idToken = await user.getIdToken();
+        setToken(idToken);
+      } else {
+        setToken(null);
+      }
+    });
+    return unsubscribe;
+  }, []);
+  
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userToken={token ?? undefined}
+    >
+      <YourApp />
+    </TamboProvider>
+  );
+}
+```
+
+## MCP Authentication
+
+MCP servers receive authentication automatically:
+
+### Server-Side MCP
+
+Tambo's internal MCP server receives an access token automatically:
+
+```tsx
+// No code needed - token is handled automatically
+<TamboProvider
+  apiKey={apiKey}
+  userKey={userId}  // Used to generate MCP token
+/>
+```
+
+### Client-Side MCP
+
+Pass auth headers to MCP servers:
+
+```tsx
+const mcpServers = [
+  {
+    name: "linear",
+    url: "https://mcp.linear.app",
+    transport: MCPTransport.HTTP,
+    customHeaders: {
+      Authorization: `Bearer ${linearApiKey}`,
+    },
+  },
+];
+
+<TamboProvider
+  apiKey={apiKey}
+  userKey={userId}
+  mcpServers={mcpServers}
+/>
+```
+
+## Security Best Practices
+
+### Never Expose API Keys
+
+```tsx
+// ✅ Good - Use environment variables
+apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+
+// ❌ Bad - Hardcoded
+apiKey="tambo_pk_abc123def456"
+```
+
+### Validate Tokens Server-Side
+
+When using `userKey`, verify the user is authenticated:
+
+```tsx
+// app/layout.tsx (Next.js)
+const session = await auth();
+
+if (!session?.user) {
+  redirect('/login');
+}
+
+return (
+  <TamboProvider
+    apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+    userKey={session.user.id}
+  >
+    {children}
+  </TamboProvider>
+);
+```
+
+### Use Short-Lived Tokens
+
+Refresh tokens before expiry:
+
+```tsx
+function App() {
+  const { getToken } = useAuth();
+  const [token, setToken] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Refresh token every 50 minutes (assuming 1-hour expiry)
+    const interval = setInterval(() => {
+      getToken({ refresh: true }).then(setToken);
+    }, 50 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [getToken]);
+  
+  // ...
+}
+```
+
+### Handle Unauthenticated State
+
+Block UI when unauthenticated:
+
+```tsx
+function ProtectedChat() {
+  const authState = useTamboAuthState();
+  
+  if (authState.status === "unauthenticated") {
+    return <LoginPrompt />;
+  }
+  
+  if (authState.status === "exchanging") {
+    return <Spinner />;
+  }
+  
+  return <ChatInterface />;
+}
+```
+
+## Environment Variables
+
+### Required
+
+```bash
+# Tambo API Key (required)
+NEXT_PUBLIC_TAMBO_API_KEY=tambo_pk_...
+```
+
+### Optional
+
+```bash
+# Custom Tambo API URL (for self-hosting)
+NEXT_PUBLIC_TAMBO_URL=https://api.your-domain.com
+
+# Environment (production or staging)
+NEXT_PUBLIC_TAMBO_ENVIRONMENT=production
+```
+
+## Next Steps
+
+- Learn about [Threads](/concepts/threads) and how they're scoped to users
+- Explore [MCP](/concepts/mcp) authentication for external integrations
+- See [Streaming](/concepts/streaming) for real-time updates
+- Check the [API Reference](/reference/react-sdk/providers) for full provider options

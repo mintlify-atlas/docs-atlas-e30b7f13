@@ -1,0 +1,576 @@
+---
+title: Command Reference
+description: Complete reference for all Tambo CLI commands
+---
+
+## Overview
+
+The Tambo CLI provides commands for project initialization, component management, authentication, and more.
+
+## Installation
+
+```bash
+npm install -g tambo
+# or use npx for one-off commands
+npx tambo [command]
+```
+
+## Global Options
+
+Available on all commands:
+
+<ParamField path="--help" type="boolean">
+  Show help for the command
+</ParamField>
+
+<ParamField path="--version" type="boolean">
+  Show CLI version
+</ParamField>
+
+## Commands
+
+### init
+
+Initialize Tambo in an existing project.
+
+```bash
+tambo init [options]
+```
+
+[Full documentation →](/api/cli/init)
+
+**Options:**
+
+- `--api-key=<key>` - Provide API key directly
+- `--project-name=<name>` - Create new project
+- `--project-id=<id>` - Use existing project
+- `--full-send` - Install starter components
+- `--yes` - Auto-answer yes to prompts
+- `--skip-agent-docs` - Skip AGENTS.md creation
+- `--legacy-peer-deps` - Use legacy peer deps
+- `--no-browser` - Don't open browser during auth
+
+**Examples:**
+
+```bash
+# Interactive
+tambo init
+
+# With API key
+tambo init --api-key=sk_...
+
+# Full-send mode
+tambo init --full-send
+
+# Non-interactive
+tambo init --project-name=my-app --no-browser
+```
+
+### add
+
+Add components to your project.
+
+```bash
+tambo add <component> [options]
+```
+
+[Full documentation →](/api/cli/add)
+
+**Options:**
+
+- `--yes` - Auto-answer yes to prompts
+- `--dry-run` - Preview changes without installing
+- `--prefix=<path>` - Custom installation path
+- `--legacy-peer-deps` - Use legacy peer deps
+- `--force-update` - Force reinstall
+
+**Examples:**
+
+```bash
+# Interactive
+tambo add message-thread-full
+
+# Non-interactive
+tambo add control-bar --yes
+
+# Dry run
+tambo add button --dry-run
+
+# Custom path
+tambo add card --prefix=src/ui/components
+```
+
+### create-app
+
+Create a new Tambo application from templates.
+
+```bash
+tambo create-app [name] [options]
+```
+
+[Full documentation →](/api/cli/create-app)
+
+**Options:**
+
+- `--template=<template>` - Template to use (standard, vite, analytics)
+- `--skip-git-init` - Skip git initialization
+- `--skip-tambo-init` - Skip tambo initialization
+- `--legacy-peer-deps` - Use legacy peer deps
+
+**Examples:**
+
+```bash
+# Interactive
+tambo create-app
+
+# Non-interactive
+tambo create-app my-app --template=standard
+
+# Current directory
+tambo create-app . --template=vite
+
+# Skip automatic setup
+tambo create-app my-app --template=standard --skip-tambo-init
+```
+
+### list
+
+List available components from the registry.
+
+```bash
+tambo list [options]
+```
+
+**Options:**
+
+- `--yes` - Skip confirmation prompts
+
+**Output:**
+
+```
+Available Tambo Components:
+
+🎨 Layout Components
+  • message-thread-full        Full-screen chat interface
+  • message-thread-panel       Split-view chat with workspace
+  • message-thread-collapsible Collapsible chat sidebar
+  • control-bar                Spotlight-style command palette
+
+🛠️  Building Blocks
+  • message-input              Message input with attachments
+  • avatar                     User avatar component
+  • button                     Button component
+  • card                       Card component
+  • input                      Input component
+
+📦 Pre-built Agents
+  • agent-toolkit              Complete agent with tools
+
+Use 'tambo add <component>' to install a component
+Visit https://ui.tambo.co to see components in action
+```
+
+**Exit code:** `0`
+
+### update
+
+Update existing components to the latest versions.
+
+```bash
+tambo update [component] [options]
+```
+
+**Options:**
+
+- `--all` - Update all components
+- `--yes` - Auto-answer yes to prompts
+- `--dry-run` - Preview changes
+
+**Examples:**
+
+```bash
+# Update specific component
+tambo update message-thread-full
+
+# Update all components
+tambo update --all
+
+# Preview updates
+tambo update --all --dry-run
+```
+
+**Output:**
+
+```
+ℹ Checking for updates...
+
+Components to update:
+  • message-thread-full (1.0.0 → 1.1.0)
+  • button (0.9.5 → 1.0.0)
+
+? Do you want to proceed with updates? (Y/n)
+
+✓ Updated message-thread-full to 1.1.0
+✓ Updated button to 1.0.0
+
+✨ Updates complete!
+```
+
+### upgrade
+
+Upgrade Tambo dependencies in your project.
+
+```bash
+tambo upgrade [options]
+```
+
+**Options:**
+
+- `--yes` - Auto-answer yes to prompts
+- `--dry-run` - Preview changes
+- `--legacy-peer-deps` - Use legacy peer deps
+
+**What it upgrades:**
+
+- `@tambo-ai/react` to latest version
+- `@tambo-ai/client` to latest version
+- Components from registry (via `update --all`)
+- LLM rules configuration
+
+**Examples:**
+
+```bash
+# Interactive
+tambo upgrade
+
+# Non-interactive
+tambo upgrade --yes
+
+# Preview
+tambo upgrade --dry-run
+```
+
+**Output:**
+
+```
+ℹ Checking for upgrades...
+
+Packages to upgrade:
+  • @tambo-ai/react (1.0.0 → 1.2.0)
+  • @tambo-ai/client (1.0.0 → 1.2.0)
+
+Components to update:
+  • message-thread-full (1.0.0 → 1.1.0)
+  • button (0.9.5 → 1.0.0)
+
+? Do you want to proceed with upgrade? (Y/n)
+
+✓ Upgraded @tambo-ai/react to 1.2.0
+✓ Upgraded @tambo-ai/client to 1.2.0
+✓ Updated 2 components
+
+✨ Upgrade complete!
+```
+
+### migrate
+
+Migrate components from legacy `ui/` location to new `tambo/` location.
+
+```bash
+tambo migrate [options]
+```
+
+**Options:**
+
+- `--yes` - Auto-answer yes to prompts
+- `--dry-run` - Preview changes
+
+**What it does:**
+
+1. Moves all components from `components/ui/` to `components/tambo/`
+2. Updates all import paths in your codebase
+3. Updates component registrations in `tambo.ts`
+
+**Examples:**
+
+```bash
+# Interactive
+tambo migrate
+
+# Non-interactive
+tambo migrate --yes
+
+# Preview
+tambo migrate --dry-run
+```
+
+**Output:**
+
+```
+ℹ Scanning for components to migrate...
+
+Components found in ui/:
+  • message-thread-full
+  • button
+  • card
+
+Files with imports to update:
+  • app/page.tsx
+  • app/layout.tsx
+  • lib/tambo.ts
+
+? Do you want to proceed with migration? (Y/n)
+
+✓ Moved 3 components to tambo/
+✓ Updated 3 files with new import paths
+
+✨ Migration complete!
+```
+
+### auth
+
+Manage authentication and sessions.
+
+```bash
+tambo auth <command> [options]
+```
+
+#### auth login
+
+Authenticate with Tambo Cloud.
+
+```bash
+tambo auth login [options]
+```
+
+**Options:**
+
+- `--no-browser` - Don't open browser (prints URL instead)
+
+**Output:**
+
+```
+🔐 Device Authorization Required
+
+Please visit: https://console.tambo.co/auth/device?code=ABCD-1234
+
+Waiting for authorization...
+
+✔ Authenticated as user@example.com
+```
+
+**Exit code:** `0`
+
+#### auth logout
+
+Log out and clear session.
+
+```bash
+tambo auth logout
+```
+
+**Output:**
+
+```
+✔ Logged out successfully
+```
+
+**Exit code:** `0`
+
+#### auth status
+
+Check current authentication status.
+
+```bash
+tambo auth status
+```
+
+**Output:**
+
+```
+Authentication Status:
+  Status: Authenticated
+  User: user@example.com
+  Session expires: 2024-12-31 23:59:59
+```
+
+**Exit code:** `0`
+
+## Exit Codes
+
+All commands use consistent exit codes:
+
+- `0` - Success
+- `1` - Error (network failure, invalid arguments, etc.)
+- `2` - User action required (non-interactive mode, missing arguments)
+
+## Environment Variables
+
+### TAMBO_TELEMETRY_DISABLED
+
+Disable anonymous telemetry.
+
+```bash
+export TAMBO_TELEMETRY_DISABLED=1
+tambo init
+```
+
+### TAMBO_TELEMETRY_HOST
+
+Override telemetry host (for testing).
+
+```bash
+export TAMBO_TELEMETRY_HOST=https://custom-host.com
+tambo init
+```
+
+### FORCE_INTERACTIVE
+
+Force interactive mode even in non-TTY environments.
+
+```bash
+export FORCE_INTERACTIVE=1
+tambo init
+```
+
+### CI
+
+Indicates CI environment (disables interactive prompts).
+
+```bash
+export CI=true
+tambo init --api-key=sk_...
+```
+
+## Non-Interactive Mode
+
+The CLI automatically detects non-interactive environments:
+
+- Piped stdin/stdout
+- CI systems (CI=true)
+- GitHub Actions (GITHUB_ACTIONS=true)
+
+In non-interactive mode:
+
+- Prompts are replaced with error messages
+- Exit code `2` indicates user action required
+- Guidance is provided for required arguments
+
+Example:
+
+```bash
+# Interactive environment
+tambo init
+# → Shows prompts
+
+# Non-interactive environment (e.g., CI)
+tambo init
+# → Error: API key required in non-interactive mode
+# → Exit code: 2
+
+# Correct usage in CI
+tambo init --api-key=sk_...
+# → Success
+# → Exit code: 0
+```
+
+## Configuration Files
+
+### .env.local (or .env)
+
+Stores API key:
+
+```bash
+TAMBO_API_KEY=sk_your_api_key_here
+# or for Next.js
+NEXT_PUBLIC_TAMBO_API_KEY=sk_your_api_key_here
+# or for Vite
+VITE_TAMBO_API_KEY=sk_your_api_key_here
+```
+
+### lib/tambo.ts
+
+Component and tool registry:
+
+```typescript
+import { TamboTool } from "@tambo-ai/react";
+import { MessageThreadFull } from "@/components/tambo/message-thread-full";
+
+export const tools: TamboTool[] = [
+  // Your tools here
+];
+
+export const components: Record<string, unknown> = {
+  MessageThreadFull,
+  // Other components
+};
+```
+
+### AGENTS.md
+
+Guidance for AI coding agents (created by `tambo init`).
+
+## Troubleshooting
+
+### Command Not Found
+
+```bash
+npx tambo [command]
+# or install globally
+npm install -g tambo
+```
+
+### Permission Denied
+
+```bash
+sudo npm install -g tambo
+# or use npx (no global install)
+npx tambo [command]
+```
+
+### Network Errors
+
+```bash
+# Check internet connection
+ping github.com
+
+# Try with verbose logging
+DEBUG=* tambo [command]
+```
+
+### Dependency Conflicts
+
+```bash
+tambo add [component] --legacy-peer-deps
+```
+
+### Stale Cache
+
+```bash
+npm cache clean --force
+tambo [command]
+```
+
+## Getting Help
+
+```bash
+# General help
+tambo --help
+
+# Command-specific help
+tambo init --help
+tambo add --help
+tambo create-app --help
+```
+
+## Version Information
+
+```bash
+tambo --version
+```
+
+Output:
+
+```
+tambo/1.0.0 linux-x64 node-v20.0.0
+```

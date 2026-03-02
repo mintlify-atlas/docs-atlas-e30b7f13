@@ -1,122 +1,134 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Tambo AI",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#8B5CF6",
+    "light": "#A78BFA",
+    "dark": "#7C3AED"
   },
   "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/tambo-ai/tambo"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/tambo-ai/tambo",
+      "discord": "https://discord.gg/dJNvPEHth6",
+      "x": "https://twitter.com/tambo_ai"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/generative-ui",
+              "concepts/components",
+              "concepts/interactable-components",
+              "concepts/tools",
+              "concepts/threads",
+              "concepts/mcp",
+              "concepts/authentication",
+              "concepts/streaming"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/register-components",
+              "guides/register-tools",
+              "guides/context-helpers",
+              "guides/suggestions",
+              "guides/voice-input",
+              "guides/self-hosting",
+              "guides/error-handling"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Templates & Examples",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "examples/overview",
+              "examples/chat-interface",
+              "examples/analytics-dashboard",
+              "examples/task-board"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "React SDK",
             "pages": [
-              "api-reference/introduction"
+              "api/react/provider",
+              "api/react/use-tambo",
+              "api/react/use-tambo-thread-input",
+              "api/react/use-tambo-component-state",
+              "api/react/use-tambo-stream-status",
+              "api/react/use-tambo-suggestions",
+              "api/react/with-interactable"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Client",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/client/tambo-client",
+              "api/client/tambo-stream",
+              "api/client/types"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "api/cli/init",
+              "api/cli/add",
+              "api/cli/create-app",
+              "api/cli/commands"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types/components",
+              "api/types/tools",
+              "api/types/threads",
+              "api/types/messages"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Resources",
+            "pages": [
+              "resources/llm-providers",
+              "resources/component-library",
+              "resources/migration-guide",
+              "resources/troubleshooting",
+              "resources/contributing",
+              "resources/changelog"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

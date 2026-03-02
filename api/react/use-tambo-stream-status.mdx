@@ -1,0 +1,427 @@
+---
+title: useTamboStreamStatus()
+description: Hook for monitoring granular streaming status of component props
+---
+
+## Overview
+
+The `useTamboStreamStatus()` hook provides granular streaming status for components being rendered by the AI. It allows your UI to respond to prop-level streaming states, showing loading indicators, animations, or skeleton states as data arrives.
+
+**Important**: This hook must be used within a component rendered via the component renderer (i.e., a component registered with Tambo and rendered by the AI).
+
+## Import
+
+```tsx
+import { useTamboStreamStatus } from '@tambo-ai/react';
+```
+
+## Usage
+
+```tsx
+import { useTamboStreamStatus } from '@tambo-ai/react';
+
+interface CardProps {
+  title: string;
+  description: string;
+  imageUrl: string;
+}
+
+function Card(props: CardProps) {
+  const { streamStatus, propStatus } = useTamboStreamStatus<CardProps>();
+
+  // Wait for entire component to finish streaming
+  if (!streamStatus.isSuccess) {
+    return <Skeleton />;
+  }
+
+  return (
+    <div>
+      <h2 className={propStatus.title?.isStreaming ? 'animate-pulse' : ''}>
+        {props.title}
+      </h2>
+      <p>{props.description}</p>
+      <img src={props.imageUrl} alt={props.title} />
+    </div>
+  );
+}
+```
+
+## Return Value
+
+### streamStatus
+
+Global stream status for the entire component. Aggregates the state of all props.
+
+<ResponseField name="streamStatus.isPending" type="boolean">
+  Indicates no tokens have been received for any prop and generation is not active.
+  
+  Useful for showing initial loading states before any data arrives.
+</ResponseField>
+
+<ResponseField name="streamStatus.isStreaming" type="boolean">
+  Indicates active streaming - at least one prop is still streaming.
+  
+  Use this to show loading animations or skeleton states during data transmission.
+</ResponseField>
+
+<ResponseField name="streamStatus.isSuccess" type="boolean">
+  Indicates successful completion - component streaming is done AND every prop finished without error.
+  
+  Safe to render the final component when this is true.
+</ResponseField>
+
+<ResponseField name="streamStatus.isError" type="boolean">
+  Indicates a fatal error occurred in any prop or the stream itself.
+  
+  Check `streamError` for details about what went wrong.
+</ResponseField>
+
+<ResponseField name="streamStatus.streamError" type="Error | undefined">
+  The first fatal error encountered during streaming, if any.
+  
+  Will be `undefined` if no errors occurred.
+</ResponseField>
+
+### propStatus
+
+Per-prop streaming status. A record mapping each prop key to its `PropStatus`.
+
+<ResponseField name="propStatus.<field>.isPending" type="boolean">
+  Indicates no tokens have been received for this specific prop yet.
+  
+  The prop value is still undefined, null, or empty string.
+</ResponseField>
+
+<ResponseField name="propStatus.<field>.isStreaming" type="boolean">
+  Indicates at least one token has been received but streaming is not complete.
+  
+  The prop has partial content that may still be updating.
+</ResponseField>
+
+<ResponseField name="propStatus.<field>.isSuccess" type="boolean">
+  Indicates this prop has finished streaming successfully.
+  
+  The prop value is complete and stable.
+</ResponseField>
+
+<ResponseField name="propStatus.<field>.error" type="Error | undefined">
+  The error that occurred during streaming for this prop, if any.
+  
+  Will be `undefined` if no error occurred.
+</ResponseField>
+
+## Type Definitions
+
+### StreamStatus
+
+```tsx
+interface StreamStatus {
+  /**
+   * No tokens received for any prop and generation not active.
+   * Show initial loading states.
+   */
+  isPending: boolean;
+  
+  /**
+   * At least one prop is still streaming.
+   * Show loading animations or skeleton states.
+   */
+  isStreaming: boolean;
+  
+  /**
+   * Component streaming done and all props finished successfully.
+   * Safe to render final component.
+   */
+  isSuccess: boolean;
+  
+  /**
+   * Fatal error occurred in any prop or the stream.
+   * Check streamError for details.
+   */
+  isError: boolean;
+  
+  /**
+   * First fatal error encountered, if any.
+   */
+  streamError?: Error;
+}
+```
+
+### PropStatus
+
+```tsx
+interface PropStatus {
+  /**
+   * No tokens received for this prop yet.
+   * Value is undefined, null, or empty.
+   */
+  isPending: boolean;
+  
+  /**
+   * At least one token received but not complete.
+   * Prop has partial content.
+   */
+  isStreaming: boolean;
+  
+  /**
+   * This prop finished streaming successfully.
+   * Value is complete and stable.
+   */
+  isSuccess: boolean;
+  
+  /**
+   * Error that occurred during streaming, if any.
+   */
+  error?: Error;
+}
+```
+
+### Hook Signature
+
+```tsx
+function useTamboStreamStatus<
+  Props extends object = Record<string, unknown>
+>(): {
+  streamStatus: StreamStatus;
+  propStatus: Partial<Record<keyof Props, PropStatus>>;
+};
+```
+
+## Examples
+
+### Wait for Complete Streaming
+
+```tsx
+function ProductCard(props: ProductCardProps) {
+  const { streamStatus } = useTamboStreamStatus();
+
+  if (!streamStatus.isSuccess) {
+    return (
+      <div className="card skeleton">
+        <div className="skeleton-title" />
+        <div className="skeleton-text" />
+        <div className="skeleton-image" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <h3>{props.title}</h3>
+      <p>{props.description}</p>
+      <img src={props.imageUrl} alt={props.title} />
+      <span className="price">${props.price}</span>
+    </div>
+  );
+}
+```
+
+### Per-Field Loading States
+
+```tsx
+interface ArticleProps {
+  title: string;
+  author: string;
+  content: string;
+  publishedAt: string;
+}
+
+function Article(props: ArticleProps) {
+  const { propStatus } = useTamboStreamStatus<ArticleProps>();
+
+  return (
+    <article>
+      <h1 className={propStatus.title?.isStreaming ? 'animate-pulse' : ''}>
+        {props.title || 'Loading...'}
+      </h1>
+      
+      <div className="meta">
+        {propStatus.author?.isSuccess ? (
+          <span>By {props.author}</span>
+        ) : (
+          <span className="skeleton-text">Loading author...</span>
+        )}
+        
+        {propStatus.publishedAt?.isSuccess && (
+          <time>{props.publishedAt}</time>
+        )}
+      </div>
+      
+      <div className={propStatus.content?.isStreaming ? 'streaming' : ''}>
+        {props.content || <Skeleton lines={5} />}
+      </div>
+    </article>
+  );
+}
+```
+
+### Error Handling
+
+```tsx
+function WeatherWidget(props: WeatherProps) {
+  const { streamStatus, propStatus } = useTamboStreamStatus<WeatherProps>();
+
+  if (streamStatus.isError) {
+    return (
+      <div className="error">
+        <h3>Failed to load weather</h3>
+        <p>{streamStatus.streamError?.message}</p>
+        <button onClick={() => window.location.reload()}>Retry</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {propStatus.temperature?.error ? (
+        <span className="error">Temperature unavailable</span>
+      ) : (
+        <span>{props.temperature}°C</span>
+      )}
+      {/* ... rest of component */}
+    </div>
+  );
+}
+```
+
+### Progressive Rendering
+
+```tsx
+function NewsCard(props: NewsCardProps) {
+  const { propStatus } = useTamboStreamStatus<NewsCardProps>();
+
+  return (
+    <div className="news-card">
+      {/* Show title as soon as it's available */}
+      {propStatus.title?.isSuccess && (
+        <h2>{props.title}</h2>
+      )}
+      
+      {/* Show image when it arrives */}
+      {propStatus.imageUrl?.isSuccess && (
+        <img src={props.imageUrl} alt={props.title} />
+      )}
+      
+      {/* Stream summary text with typing indicator */}
+      <p className={propStatus.summary?.isStreaming ? 'typing' : ''}>
+        {props.summary || 'Loading summary...'}
+      </p>
+      
+      {/* Only show metadata when everything is done */}
+      {propStatus.publishedAt?.isSuccess && propStatus.source?.isSuccess && (
+        <div className="meta">
+          <span>{props.source}</span>
+          <time>{props.publishedAt}</time>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### With Disabled Interactions
+
+```tsx
+function EditableNote(props: NoteProps) {
+  const { streamStatus } = useTamboStreamStatus();
+  const [content, setContent] = useTamboComponentState('content', props.content);
+
+  // Disable editing while streaming
+  const isEditable = streamStatus.isSuccess;
+
+  return (
+    <div>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        disabled={!isEditable}
+        className={streamStatus.isStreaming ? 'streaming' : ''}
+      />
+      {streamStatus.isStreaming && (
+        <span className="hint">AI is writing...</span>
+      )}
+    </div>
+  );
+}
+```
+
+### Conditional Rendering
+
+```tsx
+function ChartWidget(props: ChartProps) {
+  const { streamStatus, propStatus } = useTamboStreamStatus<ChartProps>();
+
+  // Don't render chart until we have all data
+  const hasAllData = 
+    propStatus.data?.isSuccess &&
+    propStatus.labels?.isSuccess &&
+    propStatus.title?.isSuccess;
+
+  if (!hasAllData) {
+    return (
+      <div className="chart-loading">
+        <Spinner />
+        <p>Loading chart data...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3>{props.title}</h3>
+      <Chart data={props.data} labels={props.labels} />
+    </div>
+  );
+}
+```
+
+## Important Notes
+
+### Props Update During Streaming
+
+Props update repeatedly during streaming and may be partial. Always check `propStatus.<field>?.isSuccess` before treating a prop as complete.
+
+```tsx
+// ❌ Bad - prop might be incomplete
+if (props.title) {
+  return <h1>{props.title}</h1>;
+}
+
+// ✅ Good - wait for completion
+if (propStatus.title?.isSuccess) {
+  return <h1>{props.title}</h1>;
+}
+```
+
+### Context Requirement
+
+This hook throws an error if used outside a rendered component. It requires the `ComponentContentProvider` context set up by the component renderer.
+
+### Pairing with useTamboComponentState
+
+Combine with `useTamboComponentState()` to disable user inputs while streaming:
+
+```tsx
+function InteractiveCard(props: CardProps) {
+  const { streamStatus } = useTamboStreamStatus();
+  const [isExpanded, setIsExpanded] = useTamboComponentState('expanded', false);
+
+  return (
+    <div>
+      {/* Card content */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        disabled={streamStatus.isStreaming}
+      >
+        {isExpanded ? 'Collapse' : 'Expand'}
+      </button>
+    </div>
+  );
+}
+```
+
+## Related
+
+- [useTamboComponentState()](/api/react/use-tambo-component-state) - Component state management
+- [useTambo()](/api/react/use-tambo) - Main hook for thread state
+- [Component State Guide](/concepts/generative-interfaces/component-state)

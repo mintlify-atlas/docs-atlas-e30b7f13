@@ -1,0 +1,263 @@
+---
+title: Migration Guide
+description: Guide for migrating between Tambo versions and handling breaking changes
+---
+
+This guide covers migration paths between major Tambo versions and how to handle breaking changes.
+
+## Current Version: 1.1.0
+
+Tambo follows [semantic versioning](https://semver.org). The current stable version is **1.1.0** (released February 2026).
+
+## Migrating to v1.x
+
+### From 0.x to 1.0
+
+Tambo 1.0 represents a major milestone with the V1 SDK promoted to the main export. Here's how to migrate:
+
+#### Breaking Changes
+
+**1. Thread Name Field Normalization**
+
+The `title` field has been renamed to `name` for consistency.
+
+```typescript
+// Before (v0.x)
+const thread = { id: "123", title: "My Thread" };
+
+// After (v1.x)
+const thread = { id: "123", name: "My Thread" };
+```
+
+**2. DisplayMessage Parameter Removed**
+
+The `displayMessage` parameter is no longer supported.
+
+```typescript
+// Before (v0.x)
+submit("Hello", { displayMessage: true });
+
+// After (v1.x)
+submit("Hello");
+```
+
+**3. V1 References Removed from JSDoc**
+
+All V1 SDK types are now the default. Update imports:
+
+```typescript
+// Before (v0.x)
+import { useTamboV1 } from "@tambo-ai/react";
+
+// After (v1.x)
+import { useTambo } from "@tambo-ai/react";
+```
+
+**4. React-DOM Peer Dependency Removed**
+
+React Native is now fully supported. No action needed unless you were relying on react-dom types.
+
+#### New Features in 1.0
+
+- **Parent Message ID**: Messages now expose `parentMessageId` for thread branching
+- **Tool Choice Support**: Control which tools the AI can call
+- **Initial Messages**: Pass conversation history when starting threads
+- **Authentication State Management**: Better handling of user tokens and auth state
+- **Interactable Component Improvements**: Default streamable hints and partial updates
+
+#### Migration Steps
+
+**1. Update Dependencies**
+
+```bash
+npm install @tambo-ai/react@latest
+```
+
+**2. Update Thread References**
+
+Find and replace `thread.title` with `thread.name`:
+
+```bash
+# Using ripgrep
+rg "thread\.title" --type ts --type tsx
+
+# Using grep
+grep -r "thread\.title" src/
+```
+
+**3. Remove V1 Prefixes**
+
+Update imports:
+
+```typescript
+// Before
+import {
+  useTamboV1,
+  TamboV1Provider,
+  useTamboV1ComponentState,
+} from "@tambo-ai/react";
+
+// After
+import {
+  useTambo,
+  TamboProvider,
+  useTamboComponentState,
+} from "@tambo-ai/react";
+```
+
+**4. Update Component Registration**
+
+No changes needed for most cases, but you can now use new features:
+
+```typescript
+const components: TamboComponent[] = [
+  {
+    name: "MyComponent",
+    description: "Description for AI",
+    component: MyComponent,
+    propsSchema: z.object({...}),
+    // New: Control streaming behavior
+    streamable: true,
+    // New: Max tool calls
+    maxCalls: 3,
+  },
+];
+```
+
+**5. Test Thoroughly**
+
+Run your test suite and verify:
+
+- Thread names display correctly
+- Component registration works
+- Tool calls function properly
+- Authentication flows work
+
+#### Codemods
+
+We provide a codemod to automate common migrations:
+
+```bash
+npx @tambo-ai/codemod v0-to-v1
+```
+
+This will:
+- Rename `title` to `name` in thread references
+- Update import statements
+- Remove `displayMessage` parameters
+
+### From 1.0 to 1.1
+
+Minor update with new features and bug fixes.
+
+#### New Features
+
+- **Message Input Behavior**: Improved contextual prompts in showcase
+- **HMR Improvements**: Better hot module replacement in development
+
+#### Bug Fixes
+
+- Fixed custom condition usage for HMR/dev/tsconfig
+- Removed react-dom peer dependency for React Native support
+
+#### Migration Steps
+
+No breaking changes. Simply update:
+
+```bash
+npm install @tambo-ai/react@latest
+```
+
+## Version History
+
+### 1.1.0 (February 2026)
+
+- Finalized message input behavior
+- Improved HMR and dev experience
+- React-dom peer dependency removed
+
+### 1.0.0 (February 2026)
+
+- V1 SDK promoted to main export
+- Thread field normalization
+- Parent message ID support
+- Tool choice and initial messages
+- Authentication state management
+
+### 0.75.0 (February 2026)
+
+- Tool choice support
+- Initial messages in V1 stack
+- Authentication state management
+- MCP provider improvements
+
+### 0.70.0 (January 2026)
+
+- React SDK dev workflow scripts
+- Optimistic UI rollback logic
+- V1 types and structure
+
+### 0.65.0 (November 2025)
+
+- MCP resource support
+- Cloud repo merge into monorepo
+- Enhanced component state handling
+
+## Self-Hosted Migrations
+
+If you're self-hosting Tambo, additional steps may be required:
+
+### Database Migrations
+
+Run migrations after updating:
+
+```bash
+npm run db:migrate -w packages/db
+```
+
+### Environment Variables
+
+Check for new required variables:
+
+```bash
+# Compare with .env.example
+diff .env apps/api/.env.example
+```
+
+### API Changes
+
+If using the API directly, check the [API Changelog](https://github.com/tambo-ai/tambo/blob/main/apps/api/CHANGELOG.md).
+
+## Breaking Changes by Version
+
+### 1.0.0
+
+- Thread `title` → `name`
+- Removed `displayMessage` parameter
+- V1 SDK promoted (import path changes)
+- React-dom no longer a peer dependency
+
+### 0.65.0
+
+- MCP provider API changes
+- Component state context key refactor
+
+### 0.50.0
+
+- Initial messages support
+- Image attachment changes
+
+## Getting Help
+
+If you encounter issues migrating:
+
+1. Check the [Troubleshooting Guide](/resources/troubleshooting)
+2. Search [GitHub Issues](https://github.com/tambo-ai/tambo/issues)
+3. Ask on [Discord](https://discord.gg/dJNvPEHth6)
+4. Review [full changelog on GitHub](https://github.com/tambo-ai/tambo/blob/main/react-sdk/CHANGELOG.md)
+
+## Related Resources
+
+- [Changelog](/resources/changelog)
+- [Troubleshooting](/resources/troubleshooting)
+- [Contributing Guide](/resources/contributing)

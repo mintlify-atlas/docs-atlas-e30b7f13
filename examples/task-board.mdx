@@ -1,0 +1,593 @@
+---
+title: Task Board Example
+description: Create interactive task boards with AI-assisted task management using interactable components
+---
+
+## Overview
+
+This guide shows you how to build an AI-powered task board where users can create, update, and organize tasks through natural language. Tasks persist across sessions and update dynamically as the AI modifies them.
+
+## Architecture
+
+A task board with Tambo uses interactable components:
+
+1. **Interactable Task Components** - Persistent tasks that the AI can modify
+2. **Task State Management** - Track task status, priority, and metadata
+3. **Board Layout** - Organize tasks by status (todo, in-progress, done)
+4. **Chat Interface** - Natural language commands for task management
+5. **Context Helpers** - Current board state for AI awareness
+
+## Interactable Components
+
+Interactable components persist and update as users refine their requests:
+
+```tsx
+import { withInteractable } from "@tambo-ai/react";
+import { z } from "zod";
+
+// Base Task Component
+function Task({ title, description, status, priority }: {
+  title: string;
+  description: string;
+  status: "todo" | "in-progress" | "done";
+  priority: "low" | "medium" | "high";
+}) {
+  const priorityColors = {
+    low: "bg-blue-100 text-blue-800",
+    medium: "bg-yellow-100 text-yellow-800",
+    high: "bg-red-100 text-red-800",
+  };
+
+  return (
+    <div className="border rounded-lg p-4 bg-card">
+      <div className="flex items-start justify-between mb-2">
+        <h3 className="font-semibold">{title}</h3>
+        <span className={`text-xs px-2 py-1 rounded ${priorityColors[priority]}`}>
+          {priority}
+        </span>
+      </div>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+// Interactable Task
+const InteractableTask = withInteractable(Task, {
+  componentName: "Task",
+  description: `A task item with title, description, status, and priority.
+    Use for creating, updating, and organizing tasks on a task board.
+    The AI can modify any field to update the task.`,
+  propsSchema: z.object({
+    title: z.string().describe("Task title"),
+    description: z.string().describe("Detailed task description"),
+    status: z.enum(["todo", "in-progress", "done"]).describe("Current task status"),
+    priority: z.enum(["low", "medium", "high"]).describe("Task priority level"),
+  }),
+});
+
+export { InteractableTask };
+```
+
+## Task Board Layout
+
+Organize tasks into columns by status:
+
+```tsx
+import { useState } from "react";
+import { InteractableTask } from "./task";
+
+type TaskData = {
+  id: string;
+  title: string;
+  description: string;
+  status: "todo" | "in-progress" | "done";
+  priority: "low" | "medium" | "high";
+};
+
+function TaskBoard() {
+  const [tasks, setTasks] = useState<TaskData[]>([
+    {
+      id: "task-1",
+      title: "Design landing page",
+      description: "Create mockups for the new landing page",
+      status: "in-progress",
+      priority: "high",
+    },
+    {
+      id: "task-2",
+      title: "Write documentation",
+      description: "Document the new API endpoints",
+      status: "todo",
+      priority: "medium",
+    },
+  ]);
+
+  const columns = [
+    { id: "todo", title: "To Do" },
+    { id: "in-progress", title: "In Progress" },
+    { id: "done", title: "Done" },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
+      {columns.map((column) => (
+        <div key={column.id} className="space-y-4">
+          <div className="border-b pb-2">
+            <h2 className="font-semibold text-lg">{column.title}</h2>
+            <span className="text-sm text-muted-foreground">
+              {tasks.filter((t) => t.status === column.id).length} tasks
+            </span>
+          </div>
+          <div className="space-y-3">
+            {tasks
+              .filter((task) => task.status === column.id)
+              .map((task) => (
+                <InteractableTask
+                  key={task.id}
+                  id={task.id}
+                  {...task}
+                />
+              ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default TaskBoard;
+```
+
+## Adding AI Chat Interface
+
+Combine the task board with a chat interface:
+
+```tsx
+import { TamboProvider, useTambo } from "@tambo-ai/react";
+import { MessageThreadPanel } from "@tambo-ai/ui-registry/components/message-thread-panel";
+import { InteractableTask } from "./task";
+import { useEffect } from "react";
+
+function TaskBoardWithChat() {
+  const { registerComponent, currentThreadId } = useTambo();
+
+  useEffect(() => {
+    registerComponent({
+      name: "Task",
+      description: `Task component for managing work items.
+        Create new tasks or update existing ones by modifying title, description, status, or priority.
+        Status options: todo, in-progress, done
+        Priority options: low, medium, high`,
+      component: InteractableTask,
+      propsSchema: InteractableTask.propsSchema,
+    });
+  }, [registerComponent, currentThreadId]);
+
+  return (
+    <div className="h-screen grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
+      {/* Task Board */}
+      <div className="lg:col-span-2">
+        <TaskBoard />
+      </div>
+
+      {/* AI Chat */}
+      <div className="lg:col-span-1">
+        <MessageThreadPanel className="h-full" />
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+    >
+      <TaskBoardWithChat />
+    </TamboProvider>
+  );
+}
+```
+
+## Task State Management
+
+Track all tasks and provide context to the AI:
+
+```tsx
+import { useState, useEffect } from "react";
+import { TamboProvider } from "@tambo-ai/react";
+
+function TaskBoardApp() {
+  const [tasks, setTasks] = useState<TaskData[]>([]);
+
+  // Load tasks from storage
+  useEffect(() => {
+    const savedTasks = localStorage.getItem("tasks");
+    if (savedTasks) {
+      setTasks(JSON.parse(savedTasks));
+    }
+  }, []);
+
+  // Save tasks to storage
+  useEffect(() => {
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+  }, [tasks]);
+
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+      contextHelpers={{
+        taskSummary: () => ({
+          key: "tasks",
+          value: `Total tasks: ${tasks.length}. 
+            Todo: ${tasks.filter((t) => t.status === "todo").length}, 
+            In Progress: ${tasks.filter((t) => t.status === "in-progress").length}, 
+            Done: ${tasks.filter((t) => t.status === "done").length}`,
+        }),
+        highPriorityTasks: () => ({
+          key: "highPriority",
+          value: tasks
+            .filter((t) => t.priority === "high" && t.status !== "done")
+            .map((t) => t.title)
+            .join(", "),
+        }),
+      }}
+    >
+      <TaskBoardWithChat />
+    </TamboProvider>
+  );
+}
+```
+
+## Advanced Features
+
+<Tabs>
+  <Tab title="Due Dates">
+    ```tsx
+    import { z } from "zod";
+    import { withInteractable } from "@tambo-ai/react";
+
+    function TaskWithDueDate({ title, description, status, priority, dueDate }: {
+      title: string;
+      description: string;
+      status: "todo" | "in-progress" | "done";
+      priority: "low" | "medium" | "high";
+      dueDate?: string;
+    }) {
+      const isOverdue = dueDate && new Date(dueDate) < new Date() && status !== "done";
+
+      return (
+        <div className="border rounded-lg p-4 bg-card">
+          <h3 className="font-semibold">{title}</h3>
+          <p className="text-sm text-muted-foreground mb-2">{description}</p>
+          {dueDate && (
+            <p className={`text-xs ${isOverdue ? "text-red-600" : "text-muted-foreground"}`}>
+              Due: {new Date(dueDate).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    const InteractableTaskWithDueDate = withInteractable(TaskWithDueDate, {
+      componentName: "Task",
+      description: "Task with due date for deadline tracking",
+      propsSchema: z.object({
+        title: z.string(),
+        description: z.string(),
+        status: z.enum(["todo", "in-progress", "done"]),
+        priority: z.enum(["low", "medium", "high"]),
+        dueDate: z.string().optional().describe("Due date in YYYY-MM-DD format"),
+      }),
+    });
+    ```
+  </Tab>
+  <Tab title="Assignees">
+    ```tsx
+    import { z } from "zod";
+    import { withInteractable } from "@tambo-ai/react";
+
+    function TaskWithAssignee({ title, description, status, priority, assignee }: {
+      title: string;
+      description: string;
+      status: "todo" | "in-progress" | "done";
+      priority: "low" | "medium" | "high";
+      assignee?: string;
+    }) {
+      return (
+        <div className="border rounded-lg p-4 bg-card">
+          <h3 className="font-semibold">{title}</h3>
+          <p className="text-sm text-muted-foreground mb-2">{description}</p>
+          {assignee && (
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                {assignee[0].toUpperCase()}
+              </div>
+              <span className="text-sm">{assignee}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const InteractableTaskWithAssignee = withInteractable(TaskWithAssignee, {
+      componentName: "Task",
+      description: "Task with assignee for team collaboration",
+      propsSchema: z.object({
+        title: z.string(),
+        description: z.string(),
+        status: z.enum(["todo", "in-progress", "done"]),
+        priority: z.enum(["low", "medium", "high"]),
+        assignee: z.string().optional().describe("Person assigned to this task"),
+      }),
+    });
+    ```
+  </Tab>
+  <Tab title="Subtasks">
+    ```tsx
+    import { z } from "zod";
+    import { withInteractable } from "@tambo-ai/react";
+
+    function TaskWithSubtasks({ title, description, status, priority, subtasks }: {
+      title: string;
+      description: string;
+      status: "todo" | "in-progress" | "done";
+      priority: "low" | "medium" | "high";
+      subtasks?: Array<{ id: string; title: string; completed: boolean }>;
+    }) {
+      const completedCount = subtasks?.filter((st) => st.completed).length || 0;
+      const totalCount = subtasks?.length || 0;
+
+      return (
+        <div className="border rounded-lg p-4 bg-card">
+          <h3 className="font-semibold">{title}</h3>
+          <p className="text-sm text-muted-foreground mb-2">{description}</p>
+          {subtasks && subtasks.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {completedCount}/{totalCount} subtasks completed
+              </p>
+              <div className="space-y-1">
+                {subtasks.map((subtask) => (
+                  <div key={subtask.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={subtask.completed}
+                      readOnly
+                      className="rounded"
+                    />
+                    <span className={subtask.completed ? "line-through" : ""}>
+                      {subtask.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const InteractableTaskWithSubtasks = withInteractable(TaskWithSubtasks, {
+      componentName: "Task",
+      description: "Task with subtasks for breaking down work",
+      propsSchema: z.object({
+        title: z.string(),
+        description: z.string(),
+        status: z.enum(["todo", "in-progress", "done"]),
+        priority: z.enum(["low", "medium", "high"]),
+        subtasks: z
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              completed: z.boolean(),
+            })
+          )
+          .optional()
+          .describe("List of subtasks"),
+      }),
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Example Interactions
+
+Here are natural language commands users can use:
+
+<AccordionGroup>
+  <Accordion title="Creating Tasks">
+    - "Create a task to review the PR"
+    - "Add a high priority task for the client meeting"
+    - "Make a task called 'Fix login bug' with due date next Friday"
+  </Accordion>
+  
+  <Accordion title="Updating Tasks">
+    - "Move 'Design landing page' to done"
+    - "Change the documentation task to high priority"
+    - "Assign the API task to Sarah"
+    - "Update the client meeting task with a reminder"
+  </Accordion>
+  
+  <Accordion title="Organizing Tasks">
+    - "Show me all high priority tasks"
+    - "Move overdue tasks to the top"
+    - "Group tasks by assignee"
+    - "Archive completed tasks from last month"
+  </Accordion>
+  
+  <Accordion title="Batch Operations">
+    - "Mark all design tasks as in progress"
+    - "Change all low priority tasks to medium"
+    - "Move all of John's tasks to done"
+  </Accordion>
+</AccordionGroup>
+
+## Complete Task Board Example
+
+```tsx
+import {
+  TamboProvider,
+  useTambo,
+  withInteractable,
+} from "@tambo-ai/react";
+import { MessageThreadPanel } from "@tambo-ai/ui-registry/components/message-thread-panel";
+import { useState, useEffect } from "react";
+import { z } from "zod";
+
+// Task Component
+function Task({ title, description, status, priority, dueDate, assignee }: {
+  title: string;
+  description: string;
+  status: "todo" | "in-progress" | "done";
+  priority: "low" | "medium" | "high";
+  dueDate?: string;
+  assignee?: string;
+}) {
+  const priorityColors = {
+    low: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  };
+
+  const isOverdue = dueDate && new Date(dueDate) < new Date() && status !== "done";
+
+  return (
+    <div className="border rounded-lg p-4 bg-card space-y-2">
+      <div className="flex items-start justify-between">
+        <h3 className="font-semibold">{title}</h3>
+        <span className={`text-xs px-2 py-1 rounded ${priorityColors[priority]}`}>
+          {priority}
+        </span>
+      </div>
+      <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        {dueDate && (
+          <span className={isOverdue ? "text-red-600" : ""}>
+            Due: {new Date(dueDate).toLocaleDateString()}
+          </span>
+        )}
+        {assignee && <span>Assigned to: {assignee}</span>}
+      </div>
+    </div>
+  );
+}
+
+const InteractableTask = withInteractable(Task, {
+  componentName: "Task",
+  description: `Task management component with full CRUD capabilities.
+    Create, update, or modify tasks with title, description, status, priority, due dates, and assignees.`,
+  propsSchema: z.object({
+    title: z.string(),
+    description: z.string(),
+    status: z.enum(["todo", "in-progress", "done"]),
+    priority: z.enum(["low", "medium", "high"]),
+    dueDate: z.string().optional(),
+    assignee: z.string().optional(),
+  }),
+});
+
+function TaskBoardApp() {
+  const { registerComponent, currentThreadId } = useTambo();
+  const [tasks, setTasks] = useState<any[]>([]);
+
+  useEffect(() => {
+    registerComponent({
+      name: "Task",
+      description: InteractableTask.description,
+      component: InteractableTask,
+      propsSchema: InteractableTask.propsSchema,
+    });
+  }, [registerComponent, currentThreadId]);
+
+  const columns = [
+    { id: "todo", title: "To Do" },
+    { id: "in-progress", title: "In Progress" },
+    { id: "done", title: "Done" },
+  ];
+
+  return (
+    <div className="h-screen flex flex-col">
+      <header className="border-b p-4">
+        <h1 className="text-2xl font-semibold">Task Board</h1>
+      </header>
+
+      <main className="flex-1 overflow-hidden">
+        <div className="h-full grid grid-cols-1 lg:grid-cols-4 gap-6 p-6">
+          {/* Task Board */}
+          <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto">
+            {columns.map((column) => (
+              <div key={column.id} className="space-y-4">
+                <div className="border-b pb-2">
+                  <h2 className="font-semibold text-lg">{column.title}</h2>
+                </div>
+                <div className="space-y-3">
+                  {/* Tasks will render here */}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* AI Chat */}
+          <div className="lg:col-span-1">
+            <MessageThreadPanel className="h-full" />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+    >
+      <TaskBoardApp />
+    </TamboProvider>
+  );
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Component Design">
+    - Use interactable components for persistent UI elements
+    - Provide clear prop schemas with descriptions
+    - Keep component logic simple and focused
+    - Handle all possible states (loading, empty, error)
+  </Accordion>
+  
+  <Accordion title="State Management">
+    - Store task state in localStorage or database
+    - Sync state changes across components
+    - Use context helpers to inform AI of current state
+    - Implement optimistic updates for better UX
+  </Accordion>
+  
+  <Accordion title="AI Interactions">
+    - Write detailed component descriptions
+    - Provide context about board state
+    - Support natural language commands
+    - Handle ambiguous requests gracefully
+  </Accordion>
+  
+  <Accordion title="User Experience">
+    - Show visual feedback for state changes
+    - Support keyboard shortcuts
+    - Implement drag-and-drop for manual reordering
+    - Add undo/redo functionality
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- Learn about [Interactable Components](/concepts/generative-interfaces/interactable-components)
+- Explore [Additional Context](/concepts/additional-context) for providing board state
+- Add [Local Tools](/guides/take-actions/register-tools) for task operations
+- Implement [MCP Integration](/concepts/model-context-protocol) for external task systems

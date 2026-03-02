@@ -1,0 +1,284 @@
+---
+title: Changelog
+description: Recent changes, updates, and version history for Tambo AI
+---
+
+Track the latest updates, features, and fixes in Tambo AI. For complete details, see the [full changelog on GitHub](https://github.com/tambo-ai/tambo/blob/main/react-sdk/CHANGELOG.md).
+
+## Latest Release
+
+### v1.1.0 (February 27, 2026)
+
+**Features:**
+
+- Finalized message input behavior and contextual showcase prompts
+- Enhanced message input component with better UX
+
+**Bug Fixes:**
+
+- Fixed custom condition usage for HMR/dev/tsconfig
+- Removed react-dom peer dependency for React Native support
+
+**Documentation:**
+
+- Updated README links
+- Expanded TamboStubProvider props documentation
+
+## Recent Releases
+
+### v1.0.3 (February 24, 2026)
+
+**Bug Fixes:**
+
+- Always reset placeholder thread in START_NEW_THREAD action
+- Fixed thread state management
+
+**Miscellaneous:**
+
+- Enabled monorepo hot reload for better DX
+
+### v1.0.2 (February 18, 2026)
+
+**Bug Fixes:**
+
+- Fixed userKey passing in updateThreadName to threads.update()
+- Improved thread naming functionality
+
+**Dependencies:**
+
+- Updated @tambo-ai/typescript-sdk to 0.92.0
+
+### v1.0.1 (February 10, 2026)
+
+**Bug Fixes:**
+
+- Unstrictified tool call args in the SDK for better compatibility
+
+**Documentation:**
+
+- Updated README files across packages
+
+### v1.0.0 (February 10, 2026)
+
+**Breaking Changes:**
+
+- V1 SDK promoted to main export
+- Thread field normalized from `title` to `name`
+- Removed `displayMessage` parameter
+
+**Features:**
+
+- Parent message ID support for thread branching
+- Tool choice configuration
+- Initial messages support
+- Authentication state management improvements
+
+**Documentation:**
+
+- Finalized v1 SDK documentation for release
+- Removed V1 references from JSDoc
+
+## Major Features by Version
+
+### 1.0 Series
+
+**v1.0.0-rc.5 (February 10, 2026)**
+
+- Exposed parentMessageId on V1 messages and SDK
+
+**v1.0.0-rc.4 (February 10, 2026)**
+
+- Manual thread renaming with updateThreadName
+- Thread field normalization (title → name)
+
+**v1.0.0-rc.3 (February 9, 2026)**
+
+- Fixed tool call UI during streaming
+- Coverage threshold improvements
+
+**v1.0.0-rc.2 (February 8, 2026)**
+
+- Removed V1 references from documentation
+
+**v1.0.0-rc.1 (February 8, 2026)**
+
+- V1 SDK promoted to main export
+- Component state improvements
+
+### 0.75 Series (January-February 2026)
+
+**Key Features:**
+
+- Tool choice support end-to-end
+- Initial messages in V1 stack
+- Authentication state management
+- MCP provider improvements
+- Interactable component enhancements
+- Streamable hints for tools
+
+### 0.70 Series (January 2026)
+
+**Key Features:**
+
+- React SDK dev workflow scripts (dev:sdk, build:sdk)
+- Optimistic UI rollback logic
+- V1 types and structure foundation
+- Event accumulation and streaming
+- React Query hooks integration
+
+### 0.65 Series (November 2025)
+
+**Key Features:**
+
+- MCP resource support
+- Cloud repo merged into monorepo
+- Inline MCP resource references
+- Enhanced resource handling
+
+### 0.60 Series (October-November 2025)
+
+**Key Features:**
+
+- MCP Elicitation support with UI
+- MCP Prompts button
+- Voice input and dictation
+- Context attachment provider
+- Automatic thread name generation
+
+## CLI Updates
+
+### v0.54.0 (February 25, 2026)
+
+- Added anonymous CLI telemetry via posthog-node SDK
+
+### v0.53.0 (February 11, 2026)
+
+- Auto-initialize git and run tambo init by default
+- Improved project setup flow
+
+### v0.52.0 (February 11, 2026)
+
+- Vite support with Tailwind v4
+- Framework detection
+- Vite template added
+
+### v0.51.0 (January 31, 2026)
+
+- useTamboV1Suggestions using v1 API endpoints
+- Message base components updates
+
+### v0.50.0 (January 31, 2026)
+
+- Phase 2 agent-friendly CLI features
+- Improved component installation
+- Better error messages
+
+## Platform Updates (Self-Hosted)
+
+### Database Schema Changes
+
+**v1.0.0:**
+
+- Thread name field migration
+- Parent message ID column added
+- Authentication improvements
+
+**v0.65.0:**
+
+- MCP resource tables
+- Enhanced token management
+
+### API Changes
+
+**v1.0.0:**
+
+- V1 API endpoints promoted
+- Tool choice parameter support
+- Initial messages handling
+
+**v0.75.0:**
+
+- Streamable tool hints
+- Tool maxCalls parameter
+- Authentication state endpoints
+
+## Deprecations
+
+### Removed in v1.0
+
+- `displayMessage` parameter (use default behavior)
+- `thread.title` field (use `thread.name`)
+- V1 prefixes in imports (use standard names)
+
+### Deprecated in v0.x
+
+- `ActionType` enum (use `role` field instead)
+- Legacy MCP transport (use `MCPTransport.HTTP`)
+
+## Migration Guides
+
+For detailed migration instructions, see:
+
+- [Migration Guide](/resources/migration-guide)
+- [v0.x to v1.0 Guide](/resources/migration-guide#from-0x-to-10)
+
+## Breaking Changes Summary
+
+### v1.0.0
+
+- Thread `title` renamed to `name`
+- Removed `displayMessage` parameter
+- V1 SDK promoted (import path changes)
+- React-dom no longer peer dependency
+
+### v0.65.0
+
+- MCP provider API changes
+- Component state context key refactor
+
+### v0.50.0
+
+- Initial messages support changes
+- Image attachment API updates
+
+## Version Support
+
+- **v1.x**: Active development and support
+- **v0.x**: Security fixes only until June 2026
+
+## Release Schedule
+
+- **Major releases** (1.x → 2.x): As needed for breaking changes
+- **Minor releases** (1.0 → 1.1): Monthly with new features
+- **Patch releases** (1.0.0 → 1.0.1): Weekly with bug fixes
+
+## Staying Updated
+
+### Get Notified
+
+- **Watch on GitHub**: [github.com/tambo-ai/tambo](https://github.com/tambo-ai/tambo)
+- **Follow on Twitter**: [@tambo_ai](https://twitter.com/tambo_ai)
+- **Join Discord**: [discord.gg/dJNvPEHth6](https://discord.gg/dJNvPEHth6)
+
+### Update Your Project
+
+```bash
+# Update to latest version
+npm install @tambo-ai/react@latest
+
+# Update CLI
+npm install -g tambo@latest
+
+# Update components
+tambo update
+
+# Upgrade all Tambo dependencies
+tambo upgrade
+```
+
+## Related Resources
+
+- [Migration Guide](/resources/migration-guide)
+- [Troubleshooting](/resources/troubleshooting)
+- [GitHub Releases](https://github.com/tambo-ai/tambo/releases)
+- [Full Changelog](https://github.com/tambo-ai/tambo/blob/main/react-sdk/CHANGELOG.md)

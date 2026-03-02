@@ -1,0 +1,610 @@
+---
+title: 'Message Types'
+description: 'TypeScript types for messages and content blocks'
+icon: 'message'
+---
+
+## Overview
+
+Message types define the structure of messages in a thread. Messages use an Anthropic-style content blocks pattern where each message contains an array of content blocks (text, tool calls, tool results, components).
+
+## TamboThreadMessage
+
+Represents a single message in a thread.
+
+```typescript
+import type { TamboThreadMessage } from '@tambo-ai/react';
+```
+
+### Definition
+
+```typescript
+interface TamboThreadMessage {
+  /** Unique message identifier */
+  id: string;
+  
+  /** Message role (user, assistant, or system) */
+  role: MessageRole;
+  
+  /** Content blocks in the message */
+  content: Content[];
+  
+  /** When the message was created (ISO 8601 timestamp) */
+  createdAt?: string;
+  
+  /** Message metadata */
+  metadata?: Record<string, unknown>;
+  
+  /**
+   * The id of the parent message, if this message was created during
+   * generation of another message (e.g., MCP sampling or elicitation).
+   */
+  parentMessageId?: string;
+  
+  /**
+   * Reasoning content from the model (transient - only during streaming).
+   * Each element is a reasoning "chunk" - models may emit multiple reasoning blocks.
+   * This data is not persisted and will not be present in messages loaded from the API.
+   */
+  reasoning?: string[];
+  
+  /**
+   * Duration of the reasoning phase in milliseconds (for display purposes).
+   * Populated when reasoning completes.
+   */
+  reasoningDurationMS?: number;
+}
+```
+
+### Fields
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the message.
+  
+  ```typescript
+  id: 'msg_abc123'
+  ```
+</ResponseField>
+
+<ResponseField name="role" type="MessageRole" required>
+  The message role. See [MessageRole](#messagerole).
+  
+  - `"user"` - Message from the user
+  - `"assistant"` - Message from the AI
+  - `"system"` - System message (when loading from API)
+</ResponseField>
+
+<ResponseField name="content" type="Content[]" required>
+  Array of content blocks. See [Content Types](#content-types).
+  
+  A message can contain multiple content blocks of different types:
+  - Text blocks
+  - Tool use blocks (tool calls)
+  - Tool result blocks (tool responses)
+  - Component blocks (rendered UI)
+  - Resource blocks (attached files/data)
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp when the message was created. Optional for historical messages loaded from API.
+  
+  ```typescript
+  createdAt: '2024-03-15T10:30:00Z'
+  ```
+</ResponseField>
+
+<ResponseField name="metadata" type="Record<string, unknown>">
+  Custom metadata associated with the message.
+  
+  ```typescript
+  metadata: {
+    sourceType: 'voice',
+    language: 'en-US'
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="parentMessageId" type="string">
+  ID of the parent message if this message was created during generation of another message (e.g., MCP sampling or elicitation).
+</ResponseField>
+
+<ResponseField name="reasoning" type="string[]">
+  Reasoning content from the model. Only present during streaming and not persisted to the database.
+  
+  Models may emit multiple reasoning blocks, so this is an array of strings.
+  
+  ```typescript
+  reasoning: [
+    'Let me think about this step by step...',
+    'First, I need to check the weather data...'
+  ]
+  ```
+</ResponseField>
+
+<ResponseField name="reasoningDurationMS" type="number">
+  Duration of the reasoning phase in milliseconds. Populated when reasoning completes.
+  
+  ```typescript
+  reasoningDurationMS: 1234
+  ```
+</ResponseField>
+
+## MessageRole
+
+The role/author of a message.
+
+```typescript
+import type { MessageRole } from '@tambo-ai/react';
+
+type MessageRole = "user" | "assistant" | "system";
+```
+
+### Values
+
+<ResponseField name="user" type="string">
+  Message from the user/human.
+</ResponseField>
+
+<ResponseField name="assistant" type="string">
+  Message from the AI assistant.
+</ResponseField>
+
+<ResponseField name="system" type="string">
+  System message. Included to accommodate messages loaded from the API.
+</ResponseField>
+
+## Content Types
+
+Union type of all content block types.
+
+```typescript
+import type { Content } from '@tambo-ai/react';
+
+type Content =
+  | TextContent
+  | TamboToolUseContent
+  | ToolResultContent
+  | TamboComponentContent
+  | ResourceContent;
+```
+
+### TextContent
+
+A text content block.
+
+```typescript
+import type { TextContent } from '@tambo-ai/react';
+
+interface TextContent {
+  type: 'text';
+  text: string;
+}
+```
+
+<ResponseField name="type" type="'text'" required>
+  Discriminator for the content block type.
+</ResponseField>
+
+<ResponseField name="text" type="string" required>
+  The text content.
+  
+  ```typescript
+  { type: 'text', text: 'Hello, how can I help you?' }
+  ```
+</ResponseField>
+
+### TamboToolUseContent
+
+A tool call (tool use) content block. Extended from the SDK with computed state properties.
+
+```typescript
+import type { TamboToolUseContent } from '@tambo-ai/react';
+
+interface TamboToolUseContent {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  
+  // Computed properties (populated by useTambo() hook)
+  hasCompleted?: boolean;
+  statusMessage?: string;
+  tamboDisplayProps?: TamboToolDisplayProps;
+}
+```
+
+<ResponseField name="type" type="'tool_use'" required>
+  Discriminator for the content block type.
+</ResponseField>
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for this tool call.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Name of the tool being called.
+</ResponseField>
+
+<ResponseField name="input" type="Record<string, unknown>" required>
+  Tool input parameters with internal `_tambo_*` properties removed. Consumers see only the actual tool parameters.
+</ResponseField>
+
+<ResponseField name="hasCompleted" type="boolean">
+  Whether this tool call has completed (has a matching tool_result). Computed by `useTambo()`.
+</ResponseField>
+
+<ResponseField name="statusMessage" type="string">
+  The status message to display, resolved based on tool execution state. Computed by `useTambo()`.
+</ResponseField>
+
+<ResponseField name="tamboDisplayProps" type="TamboToolDisplayProps">
+  Extracted Tambo display properties from the tool input. See [TamboToolDisplayProps](#tambotooldisplayprops).
+</ResponseField>
+
+### ToolResultContent
+
+A tool result content block (response from a tool call).
+
+```typescript
+import type { ToolResultContent } from '@tambo-ai/react';
+
+interface ToolResultContent {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string | Array<{ type: string; [key: string]: unknown }>;
+  is_error?: boolean;
+}
+```
+
+<ResponseField name="type" type="'tool_result'" required>
+  Discriminator for the content block type.
+</ResponseField>
+
+<ResponseField name="tool_use_id" type="string" required>
+  ID of the tool_use block this result corresponds to.
+</ResponseField>
+
+<ResponseField name="content" type="string | Array<...>" required>
+  The tool result content. Can be a string or an array of content parts.
+</ResponseField>
+
+<ResponseField name="is_error" type="boolean">
+  Whether this result represents an error.
+</ResponseField>
+
+### TamboComponentContent
+
+A component content block. Extended from the SDK with streaming state.
+
+```typescript
+import type { TamboComponentContent } from '@tambo-ai/react';
+
+interface TamboComponentContent {
+  type: 'component';
+  id: string;
+  name: string;
+  props?: Record<string, unknown>;
+  state?: Record<string, unknown>;
+  streamingState?: ComponentStreamingState;
+}
+```
+
+<ResponseField name="type" type="'component'" required>
+  Discriminator for the content block type.
+</ResponseField>
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for this component instance.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Name of the component to render.
+</ResponseField>
+
+<ResponseField name="props" type="Record<string, unknown>">
+  Component props provided by the AI.
+</ResponseField>
+
+<ResponseField name="state" type="Record<string, unknown>">
+  Component state (can be updated by AI or client).
+</ResponseField>
+
+<ResponseField name="streamingState" type="ComponentStreamingState">
+  Current streaming state of this component's props. See [ComponentStreamingState](#componentstreamingstate).
+</ResponseField>
+
+### ResourceContent
+
+A resource content block (attached files/data).
+
+```typescript
+import type { ResourceContent } from '@tambo-ai/react';
+
+interface ResourceContent {
+  type: 'resource';
+  resource: {
+    type: string;
+    resource: {
+      uri: string;
+      mimeType?: string;
+      text?: string;
+      blob?: string;
+    };
+  };
+}
+```
+
+<ResponseField name="type" type="'resource'" required>
+  Discriminator for the content block type.
+</ResponseField>
+
+<ResponseField name="resource" type="object" required>
+  The resource data including URI, MIME type, and content.
+</ResponseField>
+
+## ComponentStreamingState
+
+Streaming state for component content blocks.
+
+```typescript
+import type { ComponentStreamingState } from '@tambo-ai/react';
+
+type ComponentStreamingState = "started" | "streaming" | "done";
+```
+
+### Values
+
+<ResponseField name="started" type="string">
+  Component block created, awaiting props.
+</ResponseField>
+
+<ResponseField name="streaming" type="string">
+  Props are being streamed.
+</ResponseField>
+
+<ResponseField name="done" type="string">
+  Props streaming complete. Default for historical messages loaded from API.
+</ResponseField>
+
+## TamboToolDisplayProps
+
+Special display properties that can be included in tool input to customize status messages.
+
+```typescript
+import type { TamboToolDisplayProps } from '@tambo-ai/react';
+
+interface TamboToolDisplayProps {
+  /** Message shown while the tool is executing */
+  _tambo_statusMessage?: string;
+  
+  /** Message shown after the tool completes */
+  _tambo_completionStatusMessage?: string;
+}
+```
+
+<ResponseField name="_tambo_statusMessage" type="string">
+  Custom message displayed while the tool is executing.
+  
+  ```typescript
+  _tambo_statusMessage: 'Fetching weather data...'
+  ```
+</ResponseField>
+
+<ResponseField name="_tambo_completionStatusMessage" type="string">
+  Custom message displayed after the tool completes.
+  
+  ```typescript
+  _tambo_completionStatusMessage: 'Weather data retrieved'
+  ```
+</ResponseField>
+
+## Input Message Types
+
+Types for sending messages to the AI.
+
+### InputMessage
+
+Standard message format for user input.
+
+```typescript
+import type { InputMessage } from '@tambo-ai/react';
+
+interface InputMessage {
+  role: 'user';
+  content: string | Array<{ type: string; [key: string]: unknown }>;
+}
+```
+
+### InitialInputMessage
+
+Message type for initial messages that seed a new thread. Supports system and assistant roles in addition to user.
+
+```typescript
+import type { InitialInputMessage } from '@tambo-ai/react';
+
+interface InitialInputMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string | Array<TextContent | ResourceContent>;
+}
+```
+
+<Note>
+  Initial messages can only contain text and resource blocks, not tool results.
+</Note>
+
+## API Response Types
+
+Types returned by the Tambo API for message operations.
+
+### MessageListResponse
+
+Response when listing messages in a thread.
+
+```typescript
+import type { MessageListResponse } from '@tambo-ai/react';
+```
+
+### MessageGetResponse
+
+Response when fetching a specific message.
+
+```typescript
+import type { MessageGetResponse } from '@tambo-ai/react';
+```
+
+<Note>
+  These types are re-exported from `@tambo-ai/typescript-sdk`. Refer to the SDK documentation for detailed field definitions.
+</Note>
+
+## Usage Examples
+
+### Rendering Messages
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+import type { TamboThreadMessage, Content } from '@tambo-ai/react';
+
+function MessageList() {
+  const { messages } = useTambo();
+  
+  return (
+    <div>
+      {messages.map((message: TamboThreadMessage) => (
+        <div key={message.id} className={`message-${message.role}`}>
+          {message.content.map((block: Content, idx: number) => (
+            <ContentBlock key={idx} block={block} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Rendering Content Blocks
+
+```tsx
+import type { Content } from '@tambo-ai/react';
+
+function ContentBlock({ block }: { block: Content }) {
+  switch (block.type) {
+    case 'text':
+      return <p>{block.text}</p>;
+      
+    case 'component':
+      return <ComponentRenderer content={block} />;
+      
+    case 'tool_use':
+      return (
+        <div className="tool-call">
+          Calling tool: {block.name}
+          {block.statusMessage && <span>{block.statusMessage}</span>}
+        </div>
+      );
+      
+    case 'tool_result':
+      return (
+        <div className="tool-result">
+          {typeof block.content === 'string' ? block.content : JSON.stringify(block.content)}
+        </div>
+      );
+      
+    default:
+      return null;
+  }
+}
+```
+
+### Handling Reasoning
+
+```tsx
+import type { TamboThreadMessage } from '@tambo-ai/react';
+
+function MessageWithReasoning({ message }: { message: TamboThreadMessage }) {
+  return (
+    <div>
+      {message.reasoning && message.reasoning.length > 0 && (
+        <div className="reasoning">
+          <h4>Reasoning:</h4>
+          {message.reasoning.map((chunk, idx) => (
+            <p key={idx}>{chunk}</p>
+          ))}
+          {message.reasoningDurationMS && (
+            <span className="duration">
+              Took {message.reasoningDurationMS}ms
+            </span>
+          )}
+        </div>
+      )}
+      
+      {/* Render content blocks */}
+      {message.content.map((block, idx) => (
+        <ContentBlock key={idx} block={block} />
+      ))}
+    </div>
+  );
+}
+```
+
+### Sending Messages
+
+```tsx
+import { useTamboThreadInput } from '@tambo-ai/react';
+import type { InputMessage } from '@tambo-ai/react';
+
+function ChatInput() {
+  const { value, setValue, submit } = useTamboThreadInput();
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    await submit({
+      message: value,
+      metadata: {
+        source: 'chat-input',
+        timestamp: Date.now()
+      }
+    });
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Type a message..."
+      />
+      <button type="submit">Send</button>
+    </form>
+  );
+}
+```
+
+## Type Imports
+
+```typescript
+import type {
+  TamboThreadMessage,
+  MessageRole,
+  Content,
+  TextContent,
+  TamboToolUseContent,
+  ToolResultContent,
+  TamboComponentContent,
+  ResourceContent,
+  ComponentStreamingState,
+  TamboToolDisplayProps,
+  InputMessage,
+  InitialInputMessage,
+  MessageListResponse,
+  MessageGetResponse,
+} from '@tambo-ai/react';
+```
+
+## See Also
+
+- [useTambo Hook](/api/react/use-tambo) - Access messages
+- [Thread Types](/api/types/threads) - Thread structure
+- [Component Types](/api/types/components) - Component content blocks
+- [Tool Types](/api/types/tools) - Tool call blocks
+- [Message Concepts](/concepts/streaming) - Understanding message flow

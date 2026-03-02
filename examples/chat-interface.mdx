@@ -1,0 +1,421 @@
+---
+title: Building a Chat Interface
+description: Learn how to build a conversational AI chat interface with message threading, streaming, and dynamic components
+---
+
+## Overview
+
+This guide shows you how to build a complete chat interface with Tambo. You'll learn how to implement message threading, handle streaming responses, render dynamic components, and provide suggestion prompts.
+
+## Architecture
+
+A typical Tambo chat interface consists of:
+
+1. **TamboProvider** - Wraps your app and manages conversation state
+2. **Message Thread Component** - Displays conversation history
+3. **Message Input** - Handles user input and submission
+4. **Registered Components** - AI-generated UI components
+5. **Suggestions** - Contextual prompt suggestions
+
+## Basic Chat Interface
+
+Here's a minimal chat interface using Tambo's built-in components:
+
+```tsx
+import { TamboProvider, useTambo, useTamboThreadInput } from "@tambo-ai/react";
+import { MessageThreadFull } from "@tambo-ai/ui-registry/components/message-thread-full";
+import type { TamboComponent } from "@tambo-ai/react";
+import { z } from "zod";
+
+const components: TamboComponent[] = [
+  {
+    name: "TextSummary",
+    description: "Displays a formatted text summary",
+    component: ({ title, content }: { title: string; content: string }) => (
+      <div className="rounded-lg border p-4">
+        <h3 className="font-semibold">{title}</h3>
+        <p className="text-muted-foreground">{content}</p>
+      </div>
+    ),
+    propsSchema: z.object({
+      title: z.string(),
+      content: z.string(),
+    }),
+  },
+];
+
+function ChatApp() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+      components={components}
+    >
+      <div className="h-screen">
+        <MessageThreadFull />
+      </div>
+    </TamboProvider>
+  );
+}
+
+export default ChatApp;
+```
+
+## Custom Chat Interface
+
+For more control, build a custom interface using Tambo's hooks:
+
+```tsx
+import { useTambo, useTamboThreadInput } from "@tambo-ai/react";
+
+function CustomChat() {
+  const { messages, isStreaming } = useTambo();
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+  return (
+    <div className="flex flex-col h-screen">
+      {/* Message History */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${
+              message.role === "user" ? "justify-end" : "justify-start"
+            }`}
+          >
+            <div
+              className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                message.role === "user"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted"
+              }`}
+            >
+              {message.content}
+            </div>
+          </div>
+        ))}
+        {isStreaming && (
+          <div className="flex justify-start">
+            <div className="bg-muted rounded-lg px-4 py-2">
+              <div className="flex space-x-2">
+                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce delay-100" />
+                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce delay-200" />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input Area */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+        className="border-t p-4"
+      >
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 rounded-lg border px-4 py-2"
+            disabled={isPending}
+          />
+          <button
+            type="submit"
+            disabled={isPending || !value.trim()}
+            className="bg-primary text-primary-foreground px-6 py-2 rounded-lg disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+```
+
+## Adding Component Registration
+
+Register components dynamically within your chat interface:
+
+```tsx
+import { useTambo } from "@tambo-ai/react";
+import { useEffect } from "react";
+import { Graph, graphSchema } from "@tambo-ai/ui-registry/components/graph";
+
+function GraphChatInterface() {
+  const { registerComponent, currentThreadId } = useTambo();
+
+  useEffect(() => {
+    registerComponent({
+      name: "Graph",
+      description: `A versatile data visualization component that supports 
+        bar charts, line charts, and pie charts. Use for displaying analytics, 
+        trends, and comparative data.`,
+      component: Graph,
+      propsSchema: graphSchema,
+    });
+  }, [registerComponent, currentThreadId]);
+
+  return <MessageThreadFull />;
+}
+```
+
+## Adding Suggestions
+
+Provide contextual suggestions to guide users:
+
+<Tabs>
+  <Tab title="Static Suggestions">
+    ```tsx
+    import type { Suggestion } from "@tambo-ai/react";
+
+    const suggestions: Suggestion[] = [
+      {
+        id: "suggestion-1",
+        title: "Create a chart",
+        detailedSuggestion: "Create a bar chart showing Q1 revenue.",
+        messageId: "create-chart",
+      },
+      {
+        id: "suggestion-2",
+        title: "Summarize data",
+        detailedSuggestion: "Summarize the key insights from this data.",
+        messageId: "summarize",
+      },
+    ];
+
+    function ChatWithSuggestions() {
+      return <MessageThreadFull initialSuggestions={suggestions} />;
+    }
+    ```
+  </Tab>
+  <Tab title="Dynamic Suggestions">
+    ```tsx
+    import { useTamboSuggestions } from "@tambo-ai/react";
+
+    function ChatWithDynamicSuggestions() {
+      const { suggestions, accept, isLoading } = useTamboSuggestions({
+        maxSuggestions: 3,
+      });
+
+      return (
+        <div className="space-y-4">
+          <MessageThreadFull />
+          {suggestions.length > 0 && (
+            <div className="flex gap-2">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.id}
+                  onClick={() => accept(suggestion)}
+                  className="px-4 py-2 rounded-lg border hover:bg-muted"
+                >
+                  {suggestion.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Thread Management
+
+Manage multiple conversation threads:
+
+```tsx
+import { useTambo } from "@tambo-ai/react";
+
+function MultiThreadChat() {
+  const { threads, currentThreadId, switchThread, createThread } = useTambo();
+
+  return (
+    <div className="flex h-screen">
+      {/* Thread Sidebar */}
+      <aside className="w-64 border-r p-4">
+        <button
+          onClick={() => createThread()}
+          className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg mb-4"
+        >
+          New Thread
+        </button>
+        <div className="space-y-2">
+          {threads.map((thread) => (
+            <button
+              key={thread.id}
+              onClick={() => switchThread(thread.id)}
+              className={`w-full text-left px-4 py-2 rounded-lg ${
+                thread.id === currentThreadId ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+              }`}
+            >
+              {thread.title || "Untitled Thread"}
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      {/* Main Chat Area */}
+      <main className="flex-1">
+        <MessageThreadFull />
+      </main>
+    </div>
+  );
+}
+```
+
+## Handling Streaming
+
+Tambo handles streaming automatically, but you can show custom loading states:
+
+```tsx
+import { useTambo } from "@tambo-ai/react";
+
+function ChatWithLoadingStates() {
+  const { messages, isStreaming, streamingComponentIds } = useTambo();
+
+  return (
+    <div className="space-y-4">
+      {messages.map((message) => {
+        const isComponentStreaming = streamingComponentIds.includes(message.id);
+        
+        return (
+          <div key={message.id} className="relative">
+            {message.content}
+            {isComponentStreaming && (
+              <div className="absolute -right-2 -top-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+## Complete Example
+
+Here's a full-featured chat interface combining all the patterns:
+
+```tsx
+import {
+  TamboProvider,
+  useTambo,
+  useTamboThreadInput,
+  useTamboSuggestions,
+  type TamboComponent,
+} from "@tambo-ai/react";
+import { MessageThreadFull } from "@tambo-ai/ui-registry/components/message-thread-full";
+import { Graph, graphSchema } from "@tambo-ai/ui-registry/components/graph";
+import { FormComponent, formSchema } from "@tambo-ai/ui-registry/components/form";
+import { useEffect } from "react";
+import { z } from "zod";
+
+// Define custom components
+const components: TamboComponent[] = [
+  {
+    name: "Graph",
+    description: "Displays data as charts (bar, line, or pie)",
+    component: Graph,
+    propsSchema: graphSchema,
+  },
+  {
+    name: "FormComponent",
+    description: "Creates dynamic forms with multiple input types",
+    component: FormComponent,
+    propsSchema: formSchema,
+  },
+];
+
+function ChatInterface() {
+  const { registerComponent, currentThreadId } = useTambo();
+  const { suggestions, accept } = useTamboSuggestions({ maxSuggestions: 3 });
+
+  useEffect(() => {
+    components.forEach((comp) => registerComponent(comp));
+  }, [registerComponent, currentThreadId]);
+
+  return (
+    <div className="h-screen flex flex-col">
+      <header className="border-b p-4">
+        <h1 className="text-2xl font-semibold">AI Assistant</h1>
+      </header>
+      
+      <main className="flex-1">
+        <MessageThreadFull />
+      </main>
+
+      {suggestions.length > 0 && (
+        <div className="border-t p-4 flex gap-2 overflow-x-auto">
+          {suggestions.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => accept(s)}
+              className="px-4 py-2 rounded-lg border hover:bg-muted whitespace-nowrap"
+            >
+              {s.title}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+      components={components}
+    >
+      <ChatInterface />
+    </TamboProvider>
+  );
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Component Registration">
+    - Register components in a `useEffect` with `currentThreadId` as a dependency
+    - Provide clear, detailed descriptions to help the AI understand when to use each component
+    - Use Zod schemas to define strict type validation for component props
+  </Accordion>
+  
+  <Accordion title="Message Threading">
+    - Use unique thread IDs for each conversation
+    - Implement thread switching UI for multi-conversation apps
+    - Store thread metadata (title, created date) for better organization
+  </Accordion>
+  
+  <Accordion title="User Experience">
+    - Show loading indicators during streaming
+    - Disable input during pending operations
+    - Provide suggestions to guide users
+    - Handle errors gracefully with clear messaging
+  </Accordion>
+  
+  <Accordion title="Performance">
+    - Virtualize long message lists for better performance
+    - Lazy load components that aren't immediately visible
+    - Debounce input validation
+    - Clean up subscriptions in `useEffect` cleanup functions
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- Explore the [Chat Template](https://github.com/tambo-ai/tambo-template) for a production-ready implementation
+- Learn about [Interactable Components](/concepts/generative-interfaces/interactable-components) for persistent, updatable UI
+- Add [MCP Integrations](/concepts/model-context-protocol) to connect external services
+- Implement [User Authentication](/concepts/user-authentication) for multi-user applications

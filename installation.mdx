@@ -1,0 +1,338 @@
+---
+title: Installation
+description: Install Tambo AI packages and dependencies for your React application
+---
+
+This guide covers installing Tambo AI in your project. Choose the installation method that matches your setup.
+
+## Package managers
+
+Install the React SDK using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install @tambo-ai/react zod
+```
+
+```bash yarn
+yarn add @tambo-ai/react zod
+```
+
+```bash pnpm
+pnpm add @tambo-ai/react zod
+```
+
+</CodeGroup>
+
+## Packages
+
+### @tambo-ai/react
+
+The main React SDK. Provides hooks, providers, and utilities for building AI-powered applications.
+
+- **Version**: 1.1.0
+- **Published as**: `@tambo-ai/react` on npm
+- **License**: MIT
+- **Repository**: [github.com/tambo-ai/tambo](https://github.com/tambo-ai/tambo)
+
+### @tambo-ai/client
+
+Framework-agnostic core client. Used internally by `@tambo-ai/react` but can be used standalone for other frameworks (Vue, Svelte, etc.).
+
+- **Version**: 1.0.0
+- **Published as**: `@tambo-ai/client` on npm
+- **License**: MIT
+
+You only need to install this directly if you're building a custom framework integration.
+
+## Peer dependencies
+
+Tambo requires React 18 or 19:
+
+<CodeGroup>
+
+```bash npm
+npm install react@^18.0.0
+# or
+npm install react@^19.0.0
+```
+
+```bash yarn
+yarn add react@^18.0.0
+# or
+yarn add react@^19.0.0
+```
+
+```bash pnpm
+pnpm add react@^18.0.0
+# or
+pnpm add react@^19.0.0
+```
+
+</CodeGroup>
+
+<Note>Tambo does not require `react-dom`, making it compatible with React Native.</Note>
+
+### Schema validation
+
+Zod is required for defining component prop schemas:
+
+<CodeGroup>
+
+```bash npm
+npm install zod@^3.25.76
+# or for new projects
+npm install zod@^4
+```
+
+```bash yarn
+yarn add zod@^3.25.76
+# or for new projects
+yarn add zod@^4
+```
+
+```bash pnpm
+pnpm add zod@^3.25.76
+# or for new projects
+pnpm add zod@^4
+```
+
+</CodeGroup>
+
+Both Zod 3 (`^3.25.76`) and Zod 4 (`^4`) are supported. We recommend Zod 4 for new projects.
+
+### MCP features (optional)
+
+If you use MCP features (Model Context Protocol) via `@tambo-ai/react/mcp`, install:
+
+<CodeGroup>
+
+```bash npm
+npm install zod-to-json-schema@^3.25.1
+```
+
+```bash yarn
+yarn add zod-to-json-schema@^3.25.1
+```
+
+```bash pnpm
+pnpm add zod-to-json-schema@^3.25.1
+```
+
+</CodeGroup>
+
+<Note>The `@modelcontextprotocol/sdk` is bundled with `@tambo-ai/react` and does not need to be installed separately.</Note>
+
+## CLI tool
+
+The Tambo CLI is used for project initialization, component generation, and development utilities.
+
+You can run it directly with `npx` (no installation required):
+
+```bash
+npx tambo init
+npx tambo add graph
+npx tambo list
+```
+
+Or install it globally:
+
+<CodeGroup>
+
+```bash npm
+npm install -g tambo
+```
+
+```bash yarn
+yarn global add tambo
+```
+
+```bash pnpm
+pnpm add -g tambo
+```
+
+</CodeGroup>
+
+### CLI commands
+
+- `tambo init` - Initialize Tambo in your project
+- `tambo add <component>` - Add components from the registry
+- `tambo list` - List available components
+- `tambo create-app <name>` - Create a new Tambo app
+- `tambo update` - Update existing components
+- `tambo upgrade` - Upgrade Tambo dependencies
+
+## TypeScript
+
+Tambo is written in TypeScript and includes full type definitions. TypeScript 5.9+ is recommended.
+
+Add TypeScript to your project if you haven't already:
+
+<CodeGroup>
+
+```bash npm
+npm install -D typescript @types/react
+```
+
+```bash yarn
+yarn add -D typescript @types/react
+```
+
+```bash pnpm
+pnpm add -D typescript @types/react
+```
+
+</CodeGroup>
+
+## Environment variables
+
+Add your Tambo API key to `.env.local`:
+
+```bash .env.local
+NEXT_PUBLIC_TAMBO_API_KEY=your_api_key_here
+```
+
+Get your API key by running:
+
+```bash
+npx tambo init
+```
+
+<Tip>The `NEXT_PUBLIC_` prefix exposes the key to the browser. This is safe for Tambo Cloud - the key is scoped to your project.</Tip>
+
+## Verification
+
+Verify your installation by checking the package versions:
+
+```bash
+npm list @tambo-ai/react
+npm list zod
+```
+
+Expected output:
+
+```
+@tambo-ai/react@1.1.0
+zod@4.x.x
+```
+
+## Framework support
+
+### Next.js (recommended)
+
+Tambo works out of the box with Next.js 13+ (App Router):
+
+```tsx app/layout.tsx
+"use client";
+
+import { TamboProvider } from "@tambo-ai/react";
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <TamboProvider
+          apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY}
+          userKey="demo-user"
+        >
+          {children}
+        </TamboProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### Vite
+
+For Vite projects, wrap your app in `main.tsx`:
+
+```tsx src/main.tsx
+import { TamboProvider } from "@tambo-ai/react";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <TamboProvider
+      apiKey={import.meta.env.VITE_TAMBO_API_KEY}
+      userKey="demo-user"
+    >
+      <App />
+    </TamboProvider>
+  </StrictMode>
+);
+```
+
+### React Native
+
+Tambo is compatible with React Native since it doesn't depend on `react-dom`:
+
+```tsx App.tsx
+import { TamboProvider } from "@tambo-ai/react";
+import { View } from "react-native";
+
+export default function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.TAMBO_API_KEY}
+      userKey="demo-user"
+    >
+      <View>{/* Your app */}</View>
+    </TamboProvider>
+  );
+}
+```
+
+## Troubleshooting
+
+### Module not found: @tambo-ai/react
+
+Make sure you installed the package:
+
+```bash
+npm install @tambo-ai/react
+```
+
+### Type errors with Zod schemas
+
+Ensure you're using Zod 3.25.76 or higher, or Zod 4:
+
+```bash
+npm install zod@latest
+```
+
+### MCP features not working
+
+If you use `@tambo-ai/react/mcp`, install the optional dependency:
+
+```bash
+npm install zod-to-json-schema@^3.25.1
+```
+
+### Peer dependency warnings
+
+If you see peer dependency warnings, install the required peer dependencies:
+
+```bash
+npm install react@^18.0.0 zod@^3.25.76
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first Tambo app
+  </Card>
+  <Card title="Provider configuration" icon="gear" href="/reference/react-sdk/providers">
+    Configure TamboProvider options
+  </Card>
+  <Card title="Register components" icon="puzzle-piece" href="/concepts/generative-interfaces/generative-components">
+    Learn about component registration
+  </Card>
+  <Card title="API reference" icon="book" href="/reference/react-sdk/hooks">
+    Explore hooks and APIs
+  </Card>
+</CardGroup>

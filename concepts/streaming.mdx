@@ -1,0 +1,479 @@
+---
+title: Streaming
+description: Real-time prop and state updates for components and tools
+---
+
+## Overview
+
+Tambo streams AI responses in real-time, delivering:
+
+- **Component props** - Stream gradually as the AI generates them
+- **Component state** - Update via `useTamboComponentState()` with streaming support
+- **Tool results** - Execute client-side tools and stream responses
+- **Text content** - Character-by-character streaming for assistant messages
+
+Streaming creates responsive UIs where users see results appear incrementally instead of waiting for complete responses.
+
+## How Streaming Works
+
+When the AI generates a response:
+
+1. **Message starts** - Thread status becomes `"streaming"`
+2. **Content streams** - Props, text, and tool calls stream in real-time
+3. **Components render** - Components re-render as props update
+4. **Message completes** - Thread status returns to `"idle"`
+
+### Streaming Pipeline
+
+```tsx
+User sends message
+       ↓
+TamboStream created
+       ↓
+AI generates response
+       ↓
+Events stream to client ──→ State reducer
+       ↓                           ↓
+Component re-renders ←──── State updated
+       ↓
+Streaming complete
+```
+
+## Streaming Status
+
+Monitor streaming state with `useTambo()`:
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function StreamingIndicator() {
+  const { isStreaming, status } = useTambo();
+  
+  return (
+    <div>
+      {isStreaming && <Spinner />}
+      <span>Status: {status}</span>
+    </div>
+  );
+}
+```
+
+### Status Values
+
+- `"idle"` - No active stream
+- `"streaming"` - AI is generating response
+- `"error"` - Stream encountered an error
+
+## Component Prop Streaming
+
+Components receive props incrementally:
+
+```tsx
+function ProductList({ products }: { products: Product[] }) {
+  // products = [] initially
+  // products = [{ id: 1, name: "Item 1" }] after first item streams
+  // products = [{ id: 1, ... }, { id: 2, name: "Item 2" }] after second
+  // etc.
+  
+  return (
+    <div>
+      {products.map((product) => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+      {/* Products appear one-by-one as they stream */}
+    </div>
+  );
+}
+```
+
+### Handling Partial Props
+
+Handle incomplete data during streaming:
+
+```tsx
+function WeatherCard({ location, temperature, forecast }: WeatherProps) {
+  // Location streams first, temperature second, forecast last
+  
+  if (!location) {
+    return <Skeleton className="h-32" />;
+  }
+  
+  return (
+    <div>
+      <h2>{location}</h2>
+      {temperature ? (
+        <p className="text-4xl">{temperature}°</p>
+      ) : (
+        <div className="h-12 bg-gray-200 animate-pulse rounded" />
+      )}
+      {forecast && (
+        <div>
+          {forecast.map((day) => (
+            <DayForecast key={day.date} day={day} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Streaming Arrays
+
+Arrays build incrementally:
+
+```tsx
+function TaskList({ tasks }: { tasks: Task[] }) {
+  // tasks grows: [] → [task1] → [task1, task2] → [task1, task2, task3]
+  
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <TaskItem task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Streaming Objects
+
+Nested objects stream field-by-field:
+
+```tsx
+function ProfileCard({ user }: { user: User }) {
+  // user.name streams first
+  // then user.email
+  // then user.avatar
+  // then user.bio
+  
+  return (
+    <div>
+      <h3>{user.name ?? "Loading..."}</h3>
+      {user.email && <p>{user.email}</p>}
+      {user.avatar && <img src={user.avatar} alt={user.name} />}
+      {user.bio && <p>{user.bio}</p>}
+    </div>
+  );
+}
+```
+
+## Component State Streaming
+
+State updates also stream with `useTamboComponentState()`:
+
+```tsx
+import { useTamboComponentState } from '@tambo-ai/react';
+
+function Note({ title, content }: NoteProps) {
+  const [isPinned, setIsPinned, { isPending }] = useTamboComponentState(
+    "isPinned",
+    false
+  );
+  
+  return (
+    <div className={isPinned ? "pinned" : ""}>
+      <h3>{title}</h3>
+      <p>{content}</p>
+      {isPending && <Spinner />}  {/* Show during AI update */}
+    </div>
+  );
+}
+```
+
+User: "Pin that note"
+AI: Calls `update_Note_state({ isPinned: true })`
+`isPending` = true → State updates → `isPending` = false
+
+## Tool Streaming
+
+Tools execute client-side and can stream results:
+
+```tsx
+const tools: TamboTool[] = [
+  {
+    name: "searchDocuments",
+    description: "Searches documents and returns results",
+    tool: async ({ query }) => {
+      const response = await fetch(`/api/search?q=${query}`);
+      const data = await response.json();
+      // Result streams back to AI
+      return data;
+    },
+    inputSchema: z.object({
+      query: z.string(),
+    }),
+    outputSchema: z.object({
+      results: z.array(z.object({
+        title: z.string(),
+        url: z.string(),
+      })),
+    }),
+  },
+];
+```
+
+The tool executes and its result streams back to the AI, which can then:
+- Display the result as text
+- Render a component with the data
+- Call another tool
+
+## Streaming Control
+
+### Disable Streaming for Components
+
+Disable streaming for specific components:
+
+```tsx
+import { withTamboInteractable } from '@tambo-ai/react';
+
+const InteractableNote = withTamboInteractable(Note, {
+  componentName: "Note",
+  description: "A note component",
+  propsSchema: noteSchema,
+  annotations: {
+    tamboStreamableHint: false,  // Disable streaming
+  },
+});
+```
+
+When disabled, updates apply atomically after generation completes.
+
+### Cancel Streaming
+
+Stop an in-progress stream:
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function CancelButton() {
+  const { isStreaming, client, threadId } = useTambo();
+  
+  const handleCancel = async () => {
+    if (threadId) {
+      await client.cancelRun(threadId);
+    }
+  };
+  
+  if (!isStreaming) return null;
+  
+  return (
+    <button onClick={handleCancel}>
+      Stop Generating
+    </button>
+  );
+}
+```
+
+## TamboStream API
+
+The underlying streaming implementation uses `TamboStream`:
+
+```tsx
+import { TamboClient } from '@tambo-ai/client';
+
+const client = new TamboClient({ apiKey });
+
+// Option 1: Async iteration
+const stream = client.run("Hello, AI!");
+for await (const { event, snapshot } of stream) {
+  console.log(event.type);  // Event type
+  console.log(snapshot);     // Thread snapshot
+}
+
+// Option 2: Promise (wait for completion)
+const thread = await stream.thread;
+console.log(thread.messages);
+```
+
+### Stream Events
+
+Events emitted during streaming:
+
+- `RUN_STARTED` - Stream begins
+- `CONTENT_DELTA` - Text content chunk
+- `COMPONENT_CREATED` - Component initialized
+- `COMPONENT_PROPS` - Props update
+- `TOOL_CALL_STARTED` - Tool execution begins
+- `TOOL_CALL_ARGS` - Tool arguments stream
+- `TOOL_CALL_RESULT` - Tool completes
+- `RUN_COMPLETED` - Stream finishes
+- `RUN_ERROR` - Error occurred
+
+## Loading States
+
+### Component Loading
+
+Show loading states during streaming:
+
+```tsx
+function DataChart({ data, title }: ChartProps) {
+  const hasData = data && data.length > 0;
+  
+  return (
+    <div>
+      <h2>{title ?? <Skeleton className="h-8 w-48" />}</h2>
+      {hasData ? (
+        <Chart data={data} />
+      ) : (
+        <Skeleton className="h-64 w-full" />
+      )}
+    </div>
+  );
+}
+```
+
+### Custom Loading Components
+
+```tsx
+const components: TamboComponent[] = [
+  {
+    name: "DataChart",
+    description: "Displays data as a chart",
+    component: DataChart,
+    loadingComponent: () => (
+      <div className="animate-pulse">
+        <div className="h-8 bg-gray-200 rounded mb-4" />
+        <div className="h-64 bg-gray-200 rounded" />
+      </div>
+    ),
+    propsSchema: chartSchema,
+  },
+];
+```
+
+### Thread Loading
+
+```tsx
+function ThreadView() {
+  const { messages, isStreaming } = useTambo();
+  
+  return (
+    <div>
+      {messages.map((msg) => (
+        <Message key={msg.id} message={msg} />
+      ))}
+      {isStreaming && (
+        <div className="flex items-center gap-2">
+          <Spinner />
+          <span>AI is thinking...</span>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Streaming Performance
+
+### Debounced Updates
+
+Tambo batches rapid updates to reduce re-renders:
+
+```typescript
+// Internal implementation
+private notifyListeners(): void {
+  if (!this.pendingNotification) {
+    this.pendingNotification = true;
+    queueMicrotask(() => {
+      this.pendingNotification = false;
+      for (const listener of this.listeners) {
+        listener();
+      }
+    });
+  }
+}
+```
+
+Updates are queued and delivered in batches, preventing UI thrashing.
+
+### Optimistic Updates
+
+User messages appear immediately:
+
+```tsx
+// User message displays optimistically
+const { submit } = useTamboThreadInput();
+
+const handleSend = async () => {
+  await submit();  // Message appears before AI responds
+};
+```
+
+## Best Practices
+
+### Handle Undefined Props
+
+Always check for undefined during streaming:
+
+```tsx
+// ✅ Good
+function Component({ title, items }: Props) {
+  if (!title || !items) return <Skeleton />;
+  return <div>...</div>;
+}
+
+// ❌ Bad - crashes during streaming
+function Component({ title, items }: Props) {
+  return <div>{title.toUpperCase()}</div>;
+}
+```
+
+### Use Keys for Arrays
+
+Stable keys prevent re-renders:
+
+```tsx
+// ✅ Good - stable ID from data
+{products.map((p) => <Product key={p.id} product={p} />)}
+
+// ❌ Bad - index changes as array grows
+{products.map((p, i) => <Product key={i} product={p} />)}
+```
+
+### Show Progress
+
+Indicate streaming activity:
+
+```tsx
+function StreamingStatus() {
+  const { isStreaming } = useTambo();
+  
+  return (
+    <div className="fixed top-0 left-0 right-0">
+      {isStreaming && (
+        <div className="h-1 bg-blue-500 animate-pulse" />
+      )}
+    </div>
+  );
+}
+```
+
+### Graceful Degradation
+
+Handle streaming errors:
+
+```tsx
+function Component({ data }: Props) {
+  const { status } = useTambo();
+  
+  if (status === "error") {
+    return <ErrorMessage />;
+  }
+  
+  if (!data) {
+    return <Skeleton />;
+  }
+  
+  return <DataDisplay data={data} />;
+}
+```
+
+## Next Steps
+
+- Learn about [Threads](/concepts/threads) for conversation management
+- Explore [Components](/concepts/components) to understand component rendering
+- See [Interactable Components](/concepts/interactable-components) for stateful streaming
+- Check [Tools](/concepts/tools) for tool execution and results

@@ -1,0 +1,243 @@
+---
+title: 'Component Types'
+description: 'TypeScript types for registering and managing React components'
+icon: 'shapes'
+---
+
+## Overview
+
+Component types define how React components are registered with the AI and made available for dynamic rendering. These types are used when passing components to `TamboProvider`.
+
+## TamboComponent
+
+The primary interface for registering a React component with Tambo.
+
+```typescript
+import type { TamboComponent } from '@tambo-ai/react';
+```
+
+### Definition
+
+```typescript
+interface TamboComponent {
+  /** Component name (must be unique) */
+  name: string;
+  
+  /** Human-readable description for the AI */
+  description: string;
+  
+  /**
+   * The React component to render.
+   * Pass the Component itself, not an instance.
+   */
+  component: ComponentType<any>;
+  
+  /**
+   * Schema describing the component's props. Accepts any Standard Schema
+   * compliant validator (Zod, Valibot, ArkType, etc.) or a raw JSON Schema object.
+   */
+  propsSchema?: SupportedSchema;
+  
+  /** The loading component to render while the component is loading */
+  loadingComponent?: ComponentType<any>;
+  
+  /** Tools that are associated with this component */
+  associatedTools?: TamboTool[];
+  
+  /** Annotations describing the component's behavior */
+  annotations?: ToolAnnotations;
+}
+```
+
+### Fields
+
+<ResponseField name="name" type="string" required>
+  Unique identifier for the component. Used by the AI to reference this component.
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Clear description of what the component does and when to use it. This helps the AI decide when to render this component.
+</ResponseField>
+
+<ResponseField name="component" type="ComponentType<any>" required>
+  The React component to render. Must be the component function/class itself, not a JSX element.
+  
+  ```tsx
+  // Correct
+  component: MyComponent
+  
+  // Incorrect
+  component: <MyComponent />
+  ```
+</ResponseField>
+
+<ResponseField name="propsSchema" type="SupportedSchema">
+  Schema defining the component's props. The AI uses this to understand what props to provide.
+  
+  Supports:
+  - Standard Schema compliant validators (Zod 3.24+, Zod 4.x, Valibot, ArkType)
+  - Raw JSON Schema objects
+  
+  ```tsx
+  import { z } from 'zod';
+  
+  const weatherComponent: TamboComponent = {
+    name: 'WeatherCard',
+    description: 'Displays weather information',
+    component: WeatherCard,
+    propsSchema: z.object({
+      city: z.string(),
+      temperature: z.number(),
+      condition: z.enum(['sunny', 'cloudy', 'rainy'])
+    })
+  };
+  ```
+</ResponseField>
+
+<ResponseField name="loadingComponent" type="ComponentType<any>">
+  Optional component to display while the main component is loading or streaming props.
+</ResponseField>
+
+<ResponseField name="associatedTools" type="TamboTool[]">
+  Array of tools that work with this component. When the AI renders this component, these tools become available.
+</ResponseField>
+
+<ResponseField name="annotations" type="ToolAnnotations">
+  Metadata about the component's behavior. See [ToolAnnotations](/api/types/tools#toolannotations).
+</ResponseField>
+
+## RegisteredComponent
+
+Internal type representing a component after registration. Extends `TamboComponent` with additional runtime metadata.
+
+```typescript
+import type { RegisteredComponent } from '@tambo-ai/react';
+```
+
+### Definition
+
+```typescript
+interface RegisteredComponent {
+  /** Component name */
+  name: string;
+  
+  /** Component description */
+  description: string;
+  
+  /** The React component */
+  component: ComponentType<any>;
+  
+  /** Loading component */
+  loadingComponent?: ComponentType<any>;
+  
+  /** JSON Schema for props (converted from propsSchema) */
+  propsSchema: Record<string, unknown>;
+  
+  /** Associated tools */
+  associatedTools?: TamboTool[];
+  
+  /** Component annotations */
+  annotations?: ToolAnnotations;
+}
+```
+
+<Note>
+  You typically don't need to work with `RegisteredComponent` directly. It's used internally by the registry system.
+</Note>
+
+## ComponentRegistry
+
+A map of component names to their registered metadata.
+
+```typescript
+import type { ComponentRegistry } from '@tambo-ai/react';
+
+type ComponentRegistry = Record<string, RegisteredComponent>;
+```
+
+### Usage
+
+Accessed via the registry context:
+
+```tsx
+import { useTamboRegistry } from '@tambo-ai/react';
+
+function MyComponent() {
+  const { components } = useTamboRegistry();
+  // components is ComponentRegistry
+}
+```
+
+## Usage Example
+
+Complete example of registering components:
+
+```tsx
+import { TamboProvider, type TamboComponent } from '@tambo-ai/react';
+import { z } from 'zod';
+
+const WeatherCard: React.FC<{ city: string; temp: number }> = ({ city, temp }) => (
+  <div>
+    <h3>{city}</h3>
+    <p>{temp}°F</p>
+  </div>
+);
+
+const StockChart: React.FC<{ symbol: string; data: number[] }> = ({ symbol, data }) => (
+  <div>
+    <h3>{symbol}</h3>
+    {/* Chart rendering */}
+  </div>
+);
+
+const components: TamboComponent[] = [
+  {
+    name: 'WeatherCard',
+    description: 'Displays current weather for a city',
+    component: WeatherCard,
+    propsSchema: z.object({
+      city: z.string().describe('City name'),
+      temp: z.number().describe('Temperature in Fahrenheit')
+    })
+  },
+  {
+    name: 'StockChart',
+    description: 'Shows stock price chart',
+    component: StockChart,
+    propsSchema: z.object({
+      symbol: z.string().describe('Stock ticker symbol'),
+      data: z.array(z.number()).describe('Price history')
+    })
+  }
+];
+
+function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.TAMBO_API_KEY}
+      userKey="user-123"
+      components={components}
+    >
+      {/* Your app */}
+    </TamboProvider>
+  );
+}
+```
+
+## Type Imports
+
+```typescript
+import type {
+  TamboComponent,
+  RegisteredComponent,
+  ComponentRegistry,
+  ToolAnnotations
+} from '@tambo-ai/react';
+```
+
+## See Also
+
+- [TamboProvider](/api/react/provider) - How to register components
+- [Registering Components Guide](/guides/register-components) - Detailed guide
+- [Tool Types](/api/types/tools) - Associated tool definitions
+- [Component Concepts](/concepts/components) - Understanding components

@@ -1,0 +1,490 @@
+---
+title: Threads
+description: Understanding thread management and conversation state in Tambo AI
+---
+
+## Overview
+
+Threads are conversations between the user and the AI. Each thread maintains:
+
+- **Message history** - All user and assistant messages
+- **Component state** - Rendered components and their current props/state
+- **Metadata** - Thread name, creation time, last updated
+- **Run state** - Current streaming status and run IDs
+
+Threads are persisted on the server and scoped to a user via `userKey` or `userToken`.
+
+## Thread Lifecycle
+
+### 1. Creating Threads
+
+Threads are created automatically when you send the first message:
+
+```tsx
+import { useTamboThreadInput } from '@tambo-ai/react';
+
+function ChatInterface() {
+  const { value, setValue, submit } = useTamboThreadInput();
+  
+  const handleSubmit = async () => {
+    // Creates a new thread if one doesn't exist
+    await submit();
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <input 
+        value={value} 
+        onChange={(e) => setValue(e.target.value)} 
+      />
+      <button type="submit">Send</button>
+    </form>
+  );
+}
+```
+
+Or start a new thread explicitly:
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function NewThreadButton() {
+  const { startNewThread } = useTambo();
+  
+  return (
+    <button onClick={startNewThread}>
+      New Conversation
+    </button>
+  );
+}
+```
+
+### 2. Accessing Thread Data
+
+Get the current thread with `useTambo()`:
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function MessageList() {
+  const { messages, threadId, isStreaming } = useTambo();
+  
+  return (
+    <div>
+      <h2>Thread: {threadId}</h2>
+      {messages.map((message) => (
+        <Message key={message.id} message={message} />
+      ))}
+      {isStreaming && <LoadingIndicator />}
+    </div>
+  );
+}
+```
+
+### 3. Switching Threads
+
+Switch between existing threads:
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function ThreadSwitcher({ threadId }: { threadId: string }) {
+  const { switchThread } = useTambo();
+  
+  return (
+    <button onClick={() => switchThread(threadId)}>
+      Load Thread
+    </button>
+  );
+}
+```
+
+### 4. Listing Threads
+
+Get all threads for the current user:
+
+```tsx
+import { useTamboThreadList } from '@tambo-ai/react';
+
+function ThreadList() {
+  const { data: threads, isLoading } = useTamboThreadList();
+  
+  if (isLoading) return <Spinner />;
+  
+  return (
+    <ul>
+      {threads?.map((thread) => (
+        <li key={thread.id}>
+          <ThreadItem thread={thread} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Thread Structure
+
+A thread contains:
+
+```tsx
+interface TamboThread {
+  /** Unique thread ID */
+  id: string;
+  
+  /** Optional thread name */
+  name?: string;
+  
+  /** All messages in the thread */
+  messages: TamboThreadMessage[];
+  
+  /** Current thread status */
+  status: "idle" | "streaming" | "error";
+  
+  /** Thread metadata */
+  metadata?: Record<string, unknown>;
+  
+  /** Creation timestamp */
+  createdAt: string;
+  
+  /** Last update timestamp */
+  updatedAt: string;
+  
+  /** Whether the last run was cancelled */
+  lastRunCancelled: boolean;
+}
+```
+
+## Messages
+
+Each message in a thread has:
+
+```tsx
+interface TamboThreadMessage {
+  /** Unique message ID */
+  id: string;
+  
+  /** Message role */
+  role: "user" | "assistant";
+  
+  /** Message content (text, components, etc.) */
+  content: ContentPart[];
+  
+  /** Creation timestamp */
+  createdAt: string;
+  
+  /** Thread ID this message belongs to */
+  threadId: string;
+}
+```
+
+### Content Parts
+
+Messages contain an array of content parts:
+
+```tsx
+type ContentPart = 
+  | { type: "text"; text: string }
+  | { type: "component"; name: string; props: Record<string, unknown>; ... }
+  | { type: "image_url"; image_url: { url: string } }
+  | { type: "tool_call"; tool_call: ToolCall }
+  | { type: "tool_result"; tool_result: ToolResult };
+```
+
+Example:
+
+```tsx
+// User message
+{
+  id: "msg_123",
+  role: "user",
+  content: [
+    { type: "text", text: "Show me sales data" }
+  ]
+}
+
+// Assistant message with component
+{
+  id: "msg_124",
+  role: "assistant",
+  content: [
+    { type: "text", text: "Here's your sales data:" },
+    { 
+      type: "component", 
+      name: "SalesChart",
+      props: { data: [...] }
+    }
+  ]
+}
+```
+
+## Thread Naming
+
+Threads can be named automatically or manually.
+
+### Auto-Generated Names
+
+By default, Tambo generates names after a threshold of messages:
+
+```tsx
+<TamboProvider
+  apiKey={apiKey}
+  userKey={userKey}
+  autoGenerateThreadName={true}           // Default: true
+  autoGenerateNameThreshold={3}           // Default: 3 messages
+>
+  <App />
+</TamboProvider>
+```
+
+### Manual Naming
+
+Set thread names programmatically:
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function RenameThread() {
+  const { threadId, client } = useTambo();
+  
+  const handleRename = async (newName: string) => {
+    if (threadId) {
+      await client.updateThreadName(threadId, newName);
+    }
+  };
+  
+  return (
+    <input 
+      onBlur={(e) => handleRename(e.target.value)}
+      placeholder="Thread name"
+    />
+  );
+}
+```
+
+## Thread Metadata
+
+Store custom data with threads:
+
+```tsx
+// Metadata is set server-side via the API
+// It's available in the thread object
+
+function ThreadMetadata() {
+  const { thread } = useTambo();
+  
+  return (
+    <div>
+      <p>Project: {thread?.metadata?.projectId}</p>
+      <p>Tags: {thread?.metadata?.tags?.join(", ")}</p>
+    </div>
+  );
+}
+```
+
+Metadata is read-only from the client. Update it via your backend.
+
+## Thread Status
+
+Monitor thread state:
+
+```tsx
+function ThreadStatus() {
+  const { status, isStreaming } = useTambo();
+  
+  return (
+    <div>
+      <p>Status: {status}</p>
+      {isStreaming && <Spinner />}
+    </div>
+  );
+}
+```
+
+Status values:
+- `"idle"` - No active run
+- `"streaming"` - AI is generating a response
+- `"error"` - Last run encountered an error
+
+## Cancelling Runs
+
+Cancel an in-progress AI response:
+
+```tsx
+import { useTambo } from '@tambo-ai/react';
+
+function CancelButton() {
+  const { isStreaming, client, threadId } = useTambo();
+  
+  const handleCancel = async () => {
+    if (threadId) {
+      await client.cancelRun(threadId);
+    }
+  };
+  
+  if (!isStreaming) return null;
+  
+  return (
+    <button onClick={handleCancel}>
+      Stop Generating
+    </button>
+  );
+}
+```
+
+## User Scoping
+
+Threads are scoped to users via `userKey` or `userToken`:
+
+```tsx
+// Option 1: userKey (server-side or trusted environments)
+<TamboProvider
+  apiKey={apiKey}
+  userKey={currentUserId}  // All threads belong to this user
+>
+  <App />
+</TamboProvider>
+
+// Option 2: userToken (client-side with OAuth)
+<TamboProvider
+  apiKey={apiKey}
+  userToken={oauthToken}  // Token contains user identity
+>
+  <App />
+</TamboProvider>
+```
+
+All thread operations (create, list, fetch) only return threads owned by the authenticated user.
+
+See [Authentication](/concepts/authentication) for details.
+
+## Initial Messages
+
+Seed new threads with initial messages:
+
+```tsx
+<TamboProvider
+  apiKey={apiKey}
+  userKey={userKey}
+  initialMessages={[
+    {
+      role: "assistant",
+      content: [
+        { type: "text", text: "Hello! How can I help you today?" }
+      ],
+    },
+  ]}
+>
+  <App />
+</TamboProvider>
+```
+
+Initial messages:
+- Display immediately in new threads
+- Are sent to the API when the first user message is sent
+- Only appear in new threads, not when switching to existing threads
+
+## Thread Hooks Reference
+
+### useTambo()
+
+Access current thread data:
+
+```tsx
+const {
+  threadId,        // Current thread ID
+  messages,        // All messages
+  status,          // Thread status
+  isStreaming,     // Whether AI is generating
+  client,          // TamboClient instance
+  startNewThread,  // Start a new thread
+  switchThread,    // Switch to existing thread
+} = useTambo();
+```
+
+### useTamboThreadList()
+
+List all user threads:
+
+```tsx
+const {
+  data,            // Array of threads
+  isLoading,       // Loading state
+  error,           // Error if any
+  refetch,         // Refetch threads
+} = useTamboThreadList();
+```
+
+### useTamboThread(threadId)
+
+Fetch a specific thread:
+
+```tsx
+const {
+  data,            // Thread data
+  isLoading,       // Loading state  
+  error,           // Error if any
+} = useTamboThread(threadId);
+```
+
+## Best Practices
+
+### Thread List UI
+
+Show threads with names and timestamps:
+
+```tsx
+function ThreadListItem({ thread }: { thread: TamboThread }) {
+  const { switchThread } = useTambo();
+  
+  return (
+    <button onClick={() => switchThread(thread.id)}>
+      <h3>{thread.name ?? "Untitled"}</h3>
+      <p>{new Date(thread.updatedAt).toLocaleDateString()}</p>
+    </button>
+  );
+}
+```
+
+### Loading States
+
+Handle thread loading:
+
+```tsx
+function ThreadView() {
+  const { messages, threadId } = useTambo();
+  
+  if (!threadId) {
+    return <EmptyState />;
+  }
+  
+  if (messages.length === 0) {
+    return <Skeleton />;
+  }
+  
+  return <MessageList messages={messages} />;
+}
+```
+
+### Error Handling
+
+Handle thread errors:
+
+```tsx
+function ThreadContainer() {
+  const { status } = useTambo();
+  
+  if (status === "error") {
+    return <ErrorMessage />;
+  }
+  
+  return <ChatInterface />;
+}
+```
+
+## Next Steps
+
+- Learn about [Streaming](/concepts/streaming) to handle real-time updates
+- Explore [Authentication](/concepts/authentication) for user scoping
+- See [Components](/concepts/components) for rendering in threads
+- Check [Tools](/concepts/tools) for executing actions

@@ -1,0 +1,428 @@
+---
+title: withTamboInteractable()
+description: Higher-Order Component that makes components interactable by the AI
+---
+
+## Overview
+
+The `withTamboInteractable()` HOC wraps any React component to make it interactable by Tambo. Interactable components are automatically registered with the AI, allowing it to discover, update, and manipulate them through natural language.
+
+When you wrap a component with this HOC, the AI can:
+- Update the component's props in real-time
+- Modify the component's state through tool calls
+- Query the component's current state
+
+## Import
+
+```tsx
+import { withTamboInteractable } from '@tambo-ai/react';
+```
+
+## Usage
+
+```tsx
+import { withTamboInteractable } from '@tambo-ai/react';
+import { useTamboComponentState } from '@tambo-ai/react';
+import { z } from 'zod';
+
+interface NoteProps {
+  title: string;
+  content: string;
+}
+
+const MyNote: React.FC<NoteProps> = ({ title, content }) => {
+  const [isPinned, setIsPinned] = useTamboComponentState('isPinned', false);
+  
+  return (
+    <div style={{ 
+      border: isPinned ? '2px solid gold' : '1px solid gray',
+      order: isPinned ? -1 : 0 
+    }}>
+      <h2>{title}</h2>
+      <p>{content}</p>
+    </div>
+  );
+};
+
+const MyInteractableNote = withTamboInteractable(MyNote, {
+  componentName: 'MyNote',
+  description: 'A note component that can be pinned',
+  propsSchema: z.object({
+    title: z.string().describe('The note title'),
+    content: z.string().describe('The note content'),
+  }),
+  stateSchema: z.object({
+    isPinned: z.boolean().describe('Whether the note is pinned to the top'),
+  }),
+});
+
+// Usage
+<MyInteractableNote title="My Note" content="This is my note" />
+```
+
+## Parameters
+
+<ParamField path="WrappedComponent" type="React.ComponentType<ComponentProps>" required>
+  The React component to make interactable. Can be any functional or class component.
+</ParamField>
+
+<ParamField path="config" type="InteractableConfig" required>
+  Configuration object for the interactable component.
+</ParamField>
+
+### InteractableConfig
+
+<ParamField path="config.componentName" type="string" required>
+  The name of the component, used for identification in Tambo. Must be unique across all interactable components.
+</ParamField>
+
+<ParamField path="config.description" type="string" required>
+  A brief description of the component's purpose and functionality. The LLM uses this to understand how to interact with it.
+  
+  Be specific and include details about:
+  - What the component displays
+  - What actions it supports
+  - When it should be used
+</ParamField>
+
+<ParamField path="config.propsSchema" type="SupportedSchema<Props>">
+  Optional Zod schema for component props. If provided, prop updates will be validated against this schema.
+  
+  Use `.describe()` on schema fields to provide guidance to the AI about each prop's purpose.
+</ParamField>
+
+<ParamField path="config.stateSchema" type="SupportedSchema<State>">
+  Optional Zod schema for component state. If provided, state updates will be validated against this schema.
+  
+  State is managed via `useTamboComponentState()` within your component.
+</ParamField>
+
+<ParamField path="config.annotations" type="ToolAnnotations">
+  Optional annotations for the interactable component's auto-registered tools (props update and state update).
+  
+  By default, `tamboStreamableHint` is `true` so props/state updates stream in real-time. Set `{ tamboStreamableHint: false }` to disable streaming for this component's tools.
+</ParamField>
+
+## Injected Props
+
+The HOC injects optional props that can be passed to customize behavior:
+
+<ParamField path="interactableId" type="string">
+  Optional ID to use for this interactable component instance. If not provided, a unique ID will be generated automatically.
+</ParamField>
+
+<ParamField path="onInteractableReady" type="(id: string) => void">
+  Callback fired when the component has been registered as interactable.
+  
+  Receives the assigned interactable component ID.
+</ParamField>
+
+<ParamField path="onPropsUpdate" type="(newProps: Record<string, unknown>) => void">
+  Callback fired when the component's serializable props are updated by Tambo through a tool call.
+  
+  Note: Only serializable props are tracked. Functions, React elements, and other non-serializable values are ignored.
+</ParamField>
+
+## Type Definitions
+
+### InteractableConfig
+
+```tsx
+interface InteractableConfig<
+  Props = Record<string, unknown>,
+  State = Record<string, unknown>
+> {
+  /**
+   * The name of the component, used for identification in Tambo.
+   */
+  componentName: string;
+  
+  /**
+   * A brief description of the component's purpose and functionality.
+   * LLM will use this to understand how to interact with it.
+   */
+  description: string;
+  
+  /**
+   * Optional schema for component props. If provided, prop updates will be
+   * validated against this schema.
+   */
+  propsSchema?: SupportedSchema<Props>;
+  
+  /**
+   * Optional schema for component state. If provided, state updates will be
+   * validated against this schema.
+   */
+  stateSchema?: SupportedSchema<State>;
+  
+  /**
+   * Optional annotations for the interactable component's auto-registered tools
+   * (props update and state update). By default, `tamboStreamableHint` is `true`
+   * so props/state updates stream in real-time. Set `{ tamboStreamableHint: false }`
+   * to disable streaming for this component's tools.
+   */
+  annotations?: ToolAnnotations;
+}
+```
+
+### WithTamboInteractableProps
+
+```tsx
+interface WithTamboInteractableProps {
+  /**
+   * Optional ID to use for this interactable component instance.
+   * If not provided, a unique ID will be generated automatically.
+   */
+  interactableId?: string;
+  
+  /**
+   * Callback fired when the component has been registered as interactable.
+   */
+  onInteractableReady?: (id: string) => void;
+  
+  /**
+   * Callback fired when the component's serializable props are updated by Tambo
+   * through a tool call. Note: Only serializable props are tracked.
+   */
+  onPropsUpdate?: (newProps: Record<string, unknown>) => void;
+}
+```
+
+## Examples
+
+### Basic Interactable Card
+
+```tsx
+import { withTamboInteractable, useTamboComponentState } from '@tambo-ai/react';
+import { z } from 'zod';
+
+interface CardProps {
+  title: string;
+  content: string;
+}
+
+const Card: React.FC<CardProps> = ({ title, content }) => {
+  const [isExpanded, setIsExpanded] = useTamboComponentState('expanded', false);
+  
+  return (
+    <div className="card">
+      <h3>{title}</h3>
+      {isExpanded && <p>{content}</p>}
+      <button onClick={() => setIsExpanded(!isExpanded)}>
+        {isExpanded ? 'Collapse' : 'Expand'}
+      </button>
+    </div>
+  );
+};
+
+export const InteractableCard = withTamboInteractable(Card, {
+  componentName: 'InteractableCard',
+  description: 'A card that can be expanded or collapsed to show/hide content',
+  propsSchema: z.object({
+    title: z.string().describe('The card title'),
+    content: z.string().describe('The card content (hidden when collapsed)'),
+  }),
+  stateSchema: z.object({
+    expanded: z.boolean().describe('Whether the card is expanded'),
+  }),
+});
+```
+
+### With Callbacks
+
+```tsx
+const TodoItem: React.FC<TodoItemProps> = ({ text, completed }) => {
+  const [isCompleted, setIsCompleted] = useTamboComponentState('completed', completed);
+  
+  return (
+    <div className="todo-item">
+      <input
+        type="checkbox"
+        checked={isCompleted}
+        onChange={(e) => setIsCompleted(e.target.checked)}
+      />
+      <span className={isCompleted ? 'line-through' : ''}>{text}</span>
+    </div>
+  );
+};
+
+export const InteractiveTodo = withTamboInteractable(TodoItem, {
+  componentName: 'TodoItem',
+  description: 'A todo item that can be marked as complete or incomplete',
+  propsSchema: z.object({
+    text: z.string(),
+    completed: z.boolean(),
+  }),
+  stateSchema: z.object({
+    completed: z.boolean(),
+  }),
+});
+
+// Usage with callbacks
+<InteractiveTodo
+  text="Buy groceries"
+  completed={false}
+  onInteractableReady={(id) => console.log('Todo registered:', id)}
+  onPropsUpdate={(props) => console.log('Props updated:', props)}
+/>
+```
+
+### Complex State Management
+
+```tsx
+interface FormState {
+  name: string;
+  email: string;
+  subscribe: boolean;
+}
+
+const ContactForm: React.FC = () => {
+  const [formState, setFormState] = useTamboComponentState<FormState>(
+    'formData',
+    { name: '', email: '', subscribe: false }
+  );
+  
+  return (
+    <form>
+      <input
+        type="text"
+        value={formState.name}
+        onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+        placeholder="Name"
+      />
+      <input
+        type="email"
+        value={formState.email}
+        onChange={(e) => setFormState({ ...formState, email: e.target.value })}
+        placeholder="Email"
+      />
+      <label>
+        <input
+          type="checkbox"
+          checked={formState.subscribe}
+          onChange={(e) => setFormState({ ...formState, subscribe: e.target.checked })}
+        />
+        Subscribe to newsletter
+      </label>
+    </form>
+  );
+};
+
+export const InteractiveForm = withTamboInteractable(ContactForm, {
+  componentName: 'ContactForm',
+  description: 'A contact form that collects name, email, and newsletter subscription preference',
+  stateSchema: z.object({
+    formData: z.object({
+      name: z.string(),
+      email: z.string().email(),
+      subscribe: z.boolean(),
+    }),
+  }),
+});
+```
+
+### With Visual Feedback
+
+```tsx
+interface PriorityProps {
+  title: string;
+  priority: 'low' | 'medium' | 'high';
+}
+
+const PriorityTask: React.FC<PriorityProps> = ({ title, priority }) => {
+  const [currentPriority, setCurrentPriority] = useTamboComponentState(
+    'priority',
+    priority
+  );
+  
+  const colors = {
+    low: 'bg-green-100',
+    medium: 'bg-yellow-100',
+    high: 'bg-red-100',
+  };
+  
+  return (
+    <div className={`task ${colors[currentPriority]}`}>
+      <h4>{title}</h4>
+      <select
+        value={currentPriority}
+        onChange={(e) => setCurrentPriority(e.target.value as any)}
+      >
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+  );
+};
+
+export const InteractivePriorityTask = withTamboInteractable(PriorityTask, {
+  componentName: 'PriorityTask',
+  description: 'A task with adjustable priority level (low, medium, high)',
+  propsSchema: z.object({
+    title: z.string(),
+    priority: z.enum(['low', 'medium', 'high']),
+  }),
+  stateSchema: z.object({
+    priority: z.enum(['low', 'medium', 'high']),
+  }),
+});
+```
+
+### Disable Streaming
+
+```tsx
+const HeavyComponent: React.FC<HeavyProps> = (props) => {
+  // Component that performs expensive renders
+  return <div>{/* ... */}</div>;
+};
+
+export const InteractiveHeavyComponent = withTamboInteractable(HeavyComponent, {
+  componentName: 'HeavyComponent',
+  description: 'A component with expensive renders',
+  propsSchema: heavyPropsSchema,
+  // Disable streaming to avoid frequent re-renders during updates
+  annotations: {
+    tamboStreamableHint: false,
+  },
+});
+```
+
+## Behavior Notes
+
+### Automatic Registration
+
+When an interactable component mounts, it automatically:
+1. Generates a unique ID (or uses the provided `interactableId`)
+2. Registers with the interactable provider
+3. Creates tools for updating props and state
+4. Fires the `onInteractableReady` callback
+
+### Props vs State
+
+- **Props**: Controlled by the parent component or AI tool calls. Props updates flow from parent → child.
+- **State**: Internal to the component, managed via `useTamboComponentState()`. State updates can originate from user interactions or AI tool calls.
+
+### Serialization
+
+Only serializable prop values are tracked and can be updated by the AI:
+- ✅ Primitives (string, number, boolean)
+- ✅ Objects and arrays
+- ✅ Dates (serialized as ISO strings)
+- ❌ Functions
+- ❌ React elements
+- ❌ Class instances (unless they have proper serialization)
+
+### Context Providers
+
+The HOC automatically wraps your component with:
+- `TamboMessageProvider` - Provides message context
+- `ComponentContentProvider` - Provides component content context
+
+This allows hooks like `useTamboCurrentComponent()` and `useTamboComponentState()` to work correctly.
+
+## Related
+
+- [useTamboComponentState()](/api/react/use-tambo-component-state) - Manage component state
+- [useTamboInteractable()](/api/react/use-tambo-interactable) - Access interactable registry
+- [Interactable Components Guide](/concepts/interactable-components)

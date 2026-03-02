@@ -1,0 +1,420 @@
+---
+title: Register Local Tools
+description: Add browser-side functions that the AI can call during conversations
+---
+
+## Overview
+
+Local tools are functions that run in the browser and can be called by the AI during a conversation. They're useful for:
+
+- Accessing browser APIs (DOM, localStorage, geolocation)
+- Making authenticated API calls with user credentials
+- Manipulating client-side state
+- Performing actions that require user context
+
+Unlike MCP tools (which run server-side), local tools execute in the user's browser with full access to React state and browser APIs.
+
+## How It Works
+
+When you register a local tool:
+
+1. Tambo converts the tool definition into an LLM function call schema
+2. The AI can choose to call your tool during a conversation
+3. Your function executes in the browser and returns results
+4. The AI receives the result and continues the conversation
+
+<Steps>
+
+### Install Zod
+
+Tools use Zod schemas to define input and output types:
+
+```bash
+npm install zod
+```
+
+### Define Your Tool
+
+Create a tool with input/output schemas and an implementation function:
+
+```tsx title="lib/tambo-tools.ts"
+import { z } from 'zod';
+import { TamboTool } from '@tambo-ai/react';
+
+const getCurrentLocationTool: TamboTool = {
+  name: 'getCurrentLocation',
+  description: 'Gets the user\'s current geographic location using the browser Geolocation API. Use this when the user asks about nearby places or wants location-based information.',
+  tool: async () => {
+    // Check if geolocation is available
+    if (!navigator.geolocation) {
+      throw new Error('Geolocation is not supported by this browser');
+    }
+
+    // Get position
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject);
+    });
+
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: position.coords.accuracy,
+    };
+  },
+  inputSchema: z.object({}), // No input parameters needed
+  outputSchema: z.object({
+    latitude: z.number().describe('Latitude coordinate'),
+    longitude: z.number().describe('Longitude coordinate'),
+    accuracy: z.number().describe('Accuracy in meters'),
+  }),
+};
+
+export const tools: TamboTool[] = [getCurrentLocationTool];
+```
+
+### Add to TamboProvider
+
+Pass your tools array to `TamboProvider`:
+
+```tsx title="app/layout.tsx"
+import { TamboProvider } from '@tambo-ai/react';
+import { tools } from '@/lib/tambo-tools';
+import { components } from '@/lib/tambo-components';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <TamboProvider
+          apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+          userKey="user-123"
+          components={components}
+          tools={tools}
+        >
+          {children}
+        </TamboProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+</Steps>
+
+## Tool with Parameters
+
+Here's a tool that accepts input parameters:
+
+```tsx title="lib/tambo-tools.ts"
+import { z } from 'zod';
+import { TamboTool } from '@tambo-ai/react';
+
+const searchProductsTool: TamboTool = {
+  name: 'searchProducts',
+  description: 'Searches the product catalog by keyword. Returns matching products with prices and availability.',
+  tool: async (params: { query: string; maxResults?: number }) => {
+    const { query, maxResults = 10 } = params;
+    
+    // Make authenticated API call
+    const response = await fetch(
+      `/api/products/search?q=${encodeURIComponent(query)}&limit=${maxResults}`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.statusText}`);
+    }
+
+    return await response.json();
+  },
+  inputSchema: z.object({
+    query: z.string().describe('Search query (keywords to find)'),
+    maxResults: z.number().optional().default(10).describe('Maximum number of results to return'),
+  }),
+  outputSchema: z.object({
+    products: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        price: z.number(),
+        inStock: z.boolean(),
+      })
+    ),
+    totalResults: z.number(),
+  }),
+};
+
+export const tools: TamboTool[] = [searchProductsTool];
+```
+
+## Type-Safe Tools with defineTool
+
+Use the `defineTool` helper for full type inference:
+
+```tsx
+import { defineTool } from '@tambo-ai/react';
+import { z } from 'zod';
+
+const inputSchema = z.object({
+  taskId: z.string(),
+  completed: z.boolean(),
+});
+
+const outputSchema = z.object({
+  success: z.boolean(),
+  task: z.object({
+    id: z.string(),
+    completed: z.boolean(),
+    completedAt: z.string().optional(),
+  }),
+});
+
+const updateTaskTool = defineTool({
+  name: 'updateTask',
+  description: 'Updates a task\'s completion status',
+  // Input params and return type are fully inferred from schemas
+  tool: async (params) => {
+    // params is typed as z.infer<typeof inputSchema>
+    const response = await fetch(`/api/tasks/${params.taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed: params.completed }),
+    });
+
+    const task = await response.json();
+    
+    // Return type must match outputSchema
+    return {
+      success: response.ok,
+      task,
+    };
+  },
+  inputSchema,
+  outputSchema,
+});
+```
+
+## Accessing React State
+
+Tools can access React state and hooks by defining them inside a component:
+
+```tsx title="components/chat.tsx"
+import { useMemo } from 'react';
+import { TamboProvider, TamboTool } from '@tambo-ai/react';
+import { z } from 'zod';
+import { useCart } from '@/hooks/use-cart';
+
+export function Chat() {
+  const { items, addItem, removeItem } = useCart();
+
+  const tools: TamboTool[] = useMemo(
+    () => [
+      {
+        name: 'addToCart',
+        description: 'Adds a product to the shopping cart',
+        tool: async (params: { productId: string; quantity: number }) => {
+          addItem(params.productId, params.quantity);
+          return { success: true };
+        },
+        inputSchema: z.object({
+          productId: z.string(),
+          quantity: z.number().positive(),
+        }),
+        outputSchema: z.object({
+          success: z.boolean(),
+        }),
+      },
+      {
+        name: 'getCartContents',
+        description: 'Gets the current contents of the shopping cart',
+        tool: async () => {
+          return {
+            items: items.map((item) => ({
+              productId: item.id,
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+            total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+          };
+        },
+        inputSchema: z.object({}),
+        outputSchema: z.object({
+          items: z.array(
+            z.object({
+              productId: z.string(),
+              name: z.string(),
+              quantity: z.number(),
+              price: z.number(),
+            })
+          ),
+          total: z.number(),
+        }),
+      },
+    ],
+    [items, addItem]
+  );
+
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+      tools={tools}
+    >
+      {/* Chat UI */}
+    </TamboProvider>
+  );
+}
+```
+
+## Error Handling
+
+Throw errors in your tool implementation to signal failures:
+
+```tsx
+const deleteTool: TamboTool = {
+  name: 'deleteItem',
+  description: 'Permanently deletes an item',
+  tool: async (params: { itemId: string }) => {
+    const response = await fetch(`/api/items/${params.itemId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`Item ${params.itemId} not found`);
+      }
+      if (response.status === 403) {
+        throw new Error('You do not have permission to delete this item');
+      }
+      throw new Error(`Failed to delete item: ${response.statusText}`);
+    }
+
+    return { success: true, itemId: params.itemId };
+  },
+  inputSchema: z.object({
+    itemId: z.string(),
+  }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    itemId: z.string(),
+  }),
+};
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Write clear descriptions">
+    Descriptions help the AI understand when to call your tool. Include:
+    - What the tool does
+    - When it should be used
+    - Any prerequisites or requirements
+    
+    ```tsx
+    description: 'Searches the user\'s email inbox for messages matching a query. Use this when the user asks to find or search their emails. Requires the user to be authenticated.'
+    ```
+  </Accordion>
+
+  <Accordion title="Use descriptive parameter names">
+    Schema field descriptions help the AI provide correct inputs:
+    
+    ```tsx
+    inputSchema: z.object({
+      query: z.string().describe('Search keywords or phrases'),
+      includeArchived: z.boolean().optional().describe('Whether to include archived items'),
+      limit: z.number().optional().default(20).describe('Maximum results (1-100)'),
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Validate input carefully">
+    Don't trust AI-provided parameters. Validate and sanitize:
+    
+    ```tsx
+    tool: async (params: { amount: number }) => {
+      if (params.amount <= 0) {
+        throw new Error('Amount must be positive');
+      }
+      if (params.amount > 1000) {
+        throw new Error('Amount exceeds maximum allowed (1000)');
+      }
+      // Process payment
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle errors gracefully">
+    Throw descriptive errors that the AI can relay to the user:
+    
+    ```tsx
+    try {
+      const result = await apiCall();
+      return result;
+    } catch (error) {
+      if (error instanceof NetworkError) {
+        throw new Error('Unable to reach the server. Please check your connection.');
+      }
+      throw new Error(`Operation failed: ${error.message}`);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Keep tools focused">
+    Each tool should do one thing well. Instead of a single `manageUser` tool, create separate `createUser`, `updateUser`, and `deleteUser` tools.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Tool never gets called">
+    - Check that the tool is in the `tools` array passed to `TamboProvider`
+    - Verify the description clearly indicates when to use the tool
+    - Ensure the tool name is unique and descriptive
+    - Check browser console for registration errors
+  </Accordion>
+
+  <Accordion title="Tool receives wrong parameters">
+    - Add `.describe()` to all schema fields
+    - Make the input schema more specific with validations
+    - Check if parameter names clearly indicate their purpose
+  </Accordion>
+
+  <Accordion title="Tool errors not showing to user">
+    - Ensure you're throwing errors (not just returning error objects)
+    - Check that error messages are descriptive
+    - Verify the AI is receiving the error (check network tab)
+  </Accordion>
+</AccordionGroup>
+
+## Local Tools vs MCP Tools
+
+| Feature | Local Tools | MCP Tools |
+|---------|-------------|----------|
+| **Execution** | Browser (client-side) | Server-side |
+| **Access** | Browser APIs, DOM, user state | Databases, filesystems, external APIs |
+| **Authentication** | User's cookies/tokens | Server credentials |
+| **Performance** | Dependent on user's device | Consistent server performance |
+| **Use Cases** | UI manipulation, client state, authenticated APIs | Data fetching, file operations, integrations |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Context Helpers" icon="circle-info" href="/guides/context-helpers">
+    Add dynamic context to AI conversations
+  </Card>
+  <Card title="MCP Integration" icon="plug" href="/concepts/model-context-protocol">
+    Connect server-side MCP tools
+  </Card>
+  <Card title="Register Components" icon="shapes" href="/guides/register-components">
+    Define components the AI can render
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle tool errors properly
+  </Card>
+</CardGroup>

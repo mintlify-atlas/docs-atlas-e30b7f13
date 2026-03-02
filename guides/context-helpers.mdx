@@ -1,0 +1,429 @@
+---
+title: Adding Additional Context to AI
+description: Provide dynamic context to improve AI responses using context helpers
+---
+
+## Overview
+
+Context helpers let you inject dynamic information into every AI conversation. The AI receives this context automatically and uses it to provide more relevant, personalized responses.
+
+Common use cases:
+- Current user information (name, role, preferences)
+- Application state (selected items, current page, filters)
+- Real-time data (current time, user location)
+- Available actions (interactable components on screen)
+
+## How It Works
+
+Context helpers are functions that run before each AI interaction. They return data that gets included in the conversation context. The AI can then use this information to make better decisions.
+
+<Steps>
+
+### Define Context Helpers
+
+Create functions that return contextual data:
+
+```tsx title="lib/context-helpers.ts"
+import { ContextHelpers } from '@tambo-ai/react';
+
+export const contextHelpers: ContextHelpers = {
+  // Return null to skip including this context
+  currentUser: () => {
+    const user = getCurrentUser();
+    if (!user) return null;
+    
+    return {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      preferences: user.preferences,
+    };
+  },
+  
+  selectedItems: () => {
+    const selected = getSelectedItems();
+    if (selected.length === 0) return null;
+    
+    return {
+      count: selected.length,
+      items: selected.map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+      })),
+    };
+  },
+};
+```
+
+### Add to TamboProvider
+
+Pass context helpers to `TamboProvider`:
+
+```tsx title="app/layout.tsx"
+import { TamboProvider } from '@tambo-ai/react';
+import { contextHelpers } from '@/lib/context-helpers';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <TamboProvider
+          apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+          userKey="user-123"
+          contextHelpers={contextHelpers}
+        >
+          {children}
+        </TamboProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+</Steps>
+
+## Built-in Context Helpers
+
+Tambo provides pre-built context helpers for common scenarios:
+
+### Current Page
+
+Provides information about the current page:
+
+```tsx
+import { TamboProvider, currentPageContextHelper } from '@tambo-ai/react';
+
+<TamboProvider
+  apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+  userKey="user-123"
+  contextHelpers={{
+    currentPage: currentPageContextHelper,
+  }}
+>
+  {children}
+</TamboProvider>
+```
+
+Returns:
+```json
+{
+  "url": "https://example.com/products/123",
+  "title": "Product Details - Example Store"
+}
+```
+
+### Current Time
+
+Provides the current timestamp:
+
+```tsx
+import { TamboProvider, currentTimeContextHelper } from '@tambo-ai/react';
+
+<TamboProvider
+  apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+  userKey="user-123"
+  contextHelpers={{
+    currentTime: currentTimeContextHelper,
+  }}
+>
+  {children}
+</TamboProvider>
+```
+
+Returns:
+```json
+{
+  "timestamp": "Mon Mar 02 2026 14:30:45 GMT-0800 (Pacific Standard Time)"
+}
+```
+
+## Dynamic Context Helpers
+
+Context helpers can access React state and props:
+
+```tsx title="components/chat-interface.tsx"
+import { useMemo } from 'react';
+import { TamboProvider, ContextHelpers } from '@tambo-ai/react';
+import { useFilters } from '@/hooks/use-filters';
+import { useCart } from '@/hooks/use-cart';
+
+export function ChatInterface() {
+  const { activeFilters } = useFilters();
+  const { items: cartItems, total } = useCart();
+
+  const contextHelpers: ContextHelpers = useMemo(
+    () => ({
+      activeFilters: () => {
+        if (Object.keys(activeFilters).length === 0) return null;
+        return {
+          filters: activeFilters,
+          count: Object.keys(activeFilters).length,
+        };
+      },
+      
+      shoppingCart: () => {
+        if (cartItems.length === 0) return null;
+        return {
+          itemCount: cartItems.length,
+          total,
+          items: cartItems.map(item => ({
+            id: item.id,
+            name: item.name,
+            quantity: item.quantity,
+          })),
+        };
+      },
+    }),
+    [activeFilters, cartItems, total]
+  );
+
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey="user-123"
+      contextHelpers={contextHelpers}
+    >
+      {/* Chat UI */}
+    </TamboProvider>
+  );
+}
+```
+
+## Async Context Helpers
+
+Context helpers can be async and fetch data:
+
+```tsx
+import { ContextHelpers } from '@tambo-ai/react';
+
+const contextHelpers: ContextHelpers = {
+  recentActivity: async () => {
+    try {
+      const response = await fetch('/api/user/recent-activity');
+      const data = await response.json();
+      
+      return {
+        lastActiveAt: data.lastActiveAt,
+        recentPages: data.recentPages,
+        recentActions: data.recentActions,
+      };
+    } catch (error) {
+      console.error('Failed to fetch recent activity:', error);
+      return null; // Skip this context if fetch fails
+    }
+  },
+  
+  notifications: async () => {
+    const unread = await getUnreadNotifications();
+    if (unread.length === 0) return null;
+    
+    return {
+      unreadCount: unread.length,
+      recent: unread.slice(0, 3).map(n => ({
+        id: n.id,
+        type: n.type,
+        message: n.message,
+      })),
+    };
+  },
+};
+```
+
+<Warning>
+  Keep async operations fast. Context helpers run before every AI interaction, so slow operations will delay responses.
+</Warning>
+
+## Conditional Context
+
+Return `null` or `undefined` to skip including context:
+
+```tsx
+const contextHelpers: ContextHelpers = {
+  // Only include if user is admin
+  adminPanel: () => {
+    const user = getCurrentUser();
+    if (!user || user.role !== 'admin') return null;
+    
+    return {
+      adminFeatures: ['users', 'settings', 'reports'],
+      pendingActions: getPendingAdminActions(),
+    };
+  },
+  
+  // Only include during business hours
+  supportAvailability: () => {
+    const hour = new Date().getHours();
+    const isBusinessHours = hour >= 9 && hour < 17;
+    
+    if (!isBusinessHours) return null;
+    
+    return {
+      supportAvailable: true,
+      estimatedWaitTime: '2-3 minutes',
+    };
+  },
+};
+```
+
+## Programmatic Context Management
+
+Use the `useTamboContextHelpers` hook to add/remove context helpers dynamically:
+
+```tsx
+import { useEffect } from 'react';
+import { useTamboContextHelpers } from '@tambo-ai/react';
+
+function FeatureComponent() {
+  const { addContextHelper, removeContextHelper } = useTamboContextHelpers();
+  
+  useEffect(() => {
+    // Add context when component mounts
+    addContextHelper('activeFeature', () => ({
+      feature: 'data-export',
+      enabled: true,
+    }));
+    
+    // Remove context when component unmounts
+    return () => {
+      removeContextHelper('activeFeature');
+    };
+  }, [addContextHelper, removeContextHelper]);
+  
+  return <div>Feature UI</div>;
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep context data concise">
+    Only include information the AI needs. Excessive context can:
+    - Increase token usage and costs
+    - Slow down AI response time
+    - Make the AI less focused
+    
+    Bad:
+    ```tsx
+    currentUser: () => ({
+      ...user, // Entire user object with 50+ fields
+      history: allUserHistory, // Years of data
+    })
+    ```
+    
+    Good:
+    ```tsx
+    currentUser: () => ({
+      name: user.name,
+      role: user.role,
+      preferences: user.preferences,
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Use descriptive keys">
+    Context helper names become field names in the AI context. Make them clear:
+    
+    ```tsx
+    // Good
+    contextHelpers={{
+      currentUser: getCurrentUserHelper,
+      selectedProducts: getSelectedProductsHelper,
+      activeFilters: getActiveFiltersHelper,
+    }}
+    
+    // Bad
+    contextHelpers={{
+      user: getCurrentUserHelper,
+      data: getSelectedProductsHelper,
+      ctx: getActiveFiltersHelper,
+    }}
+    ```
+  </Accordion>
+
+  <Accordion title="Return null for empty state">
+    Don't send empty arrays or objects. Return null instead:
+    
+    ```tsx
+    selectedItems: () => {
+      const items = getSelected();
+      // Good: skip this context entirely if nothing selected
+      if (items.length === 0) return null;
+      return { items };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle errors gracefully">
+    If a context helper fails, return null rather than throwing:
+    
+    ```tsx
+    userLocation: async () => {
+      try {
+        const location = await getUserLocation();
+        return location;
+      } catch (error) {
+        console.error('Location access denied:', error);
+        return null; // Continue without this context
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Context vs Tools
+
+**Context helpers** provide passive information:
+- Current state
+- Available data
+- User preferences
+- Application context
+
+**Tools** perform actions:
+- Fetch data
+- Update state
+- Call APIs
+- Execute operations
+
+Use context for "what the AI should know" and tools for "what the AI can do."
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Context not appearing in AI responses">
+    - Verify helpers are passed to `TamboProvider`
+    - Check that helpers return non-null values
+    - Ensure helper functions don't throw errors
+    - Test helper return values by logging them
+  </Accordion>
+
+  <Accordion title="AI responses are slower after adding context">
+    - Reduce the amount of data in each helper
+    - Remove context helpers that aren't useful
+    - Make async operations faster or remove them
+    - Consider caching expensive computations
+  </Accordion>
+
+  <Accordion title="Context helpers not updating">
+    - If using `useMemo`, verify dependencies are correct
+    - Check that stateful data is properly synchronized
+    - Ensure async helpers are completing before AI interaction
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Register Components" icon="shapes" href="/guides/register-components">
+    Define components for the AI to render
+  </Card>
+  <Card title="Register Tools" icon="wrench" href="/guides/register-tools">
+    Add functions the AI can call
+  </Card>
+  <Card title="User Authentication" icon="key" href="/concepts/user-authentication">
+    Secure AI access with user tokens
+  </Card>
+  <Card title="Additional Context Reference" icon="book" href="/concepts/additional-context">
+    Full context helper documentation
+  </Card>
+</CardGroup>

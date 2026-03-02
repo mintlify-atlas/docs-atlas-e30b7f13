@@ -1,0 +1,467 @@
+---
+title: tambo create-app
+description: Create a new Tambo application from templates with automatic setup
+---
+
+## Overview
+
+The `tambo create-app` command creates a new Tambo application from pre-built templates. It handles:
+
+- Template cloning from GitHub
+- Dependency installation
+- Git initialization
+- Tambo initialization (authentication + API key)
+
+## Usage
+
+```bash
+tambo create-app [name] [options]
+```
+
+## Arguments
+
+<ParamField path="name" type="string">
+  Name of the app directory (use `.` for current directory)
+</ParamField>
+
+## Options
+
+<ParamField path="--template" type="string">
+  Template to use: `standard`, `vite`, or `analytics`
+</ParamField>
+
+<ParamField path="--skip-git-init" type="boolean" default="false">
+  Skip git repository initialization
+</ParamField>
+
+<ParamField path="--skip-tambo-init" type="boolean" default="false">
+  Skip tambo initialization (authentication)
+</ParamField>
+
+<ParamField path="--legacy-peer-deps" type="boolean" default="false">
+  Pass --legacy-peer-deps to npm install
+</ParamField>
+
+## Available Templates
+
+### standard (Recommended)
+
+Tambo + Tools + MCP integration with Next.js.
+
+```bash
+tambo create-app my-app --template=standard
+```
+
+**Features:**
+
+- Next.js 14+ with App Router
+- Pre-configured Tambo components
+- Tool examples (web search, calculator, etc.)
+- MCP server integration
+- TypeScript
+- Tailwind CSS
+
+**Repository:** https://github.com/tambo-ai/tambo-template.git
+
+### vite
+
+Tambo + TanStack Router + Vite for fast development.
+
+```bash
+tambo create-app my-app --template=vite
+```
+
+**Features:**
+
+- Vite for instant HMR
+- TanStack Router for type-safe routing
+- Lightweight and fast
+- TypeScript
+- Tailwind CSS
+
+**Repository:** https://github.com/tambo-ai/tambo-template-vite.git
+
+### analytics
+
+Generative UI Analytics Template with charts and dashboards.
+
+```bash
+tambo create-app my-app --template=analytics
+```
+
+**Features:**
+
+- Data visualization components
+- Chart integrations
+- Analytics-focused UI
+- Next.js 14+
+- TypeScript
+
+**Repository:** https://github.com/tambo-ai/analytics-template.git
+
+## Interactive Mode (Default)
+
+When run without a name, prompts for app details:
+
+```bash
+tambo create-app
+```
+
+Output:
+
+```
+? What is the name of your app? (use "." to create in current directory)
+  my-tambo-app
+
+? Select a template for your new app:
+  > standard - Tambo + Tools + MCP (recommended)
+    vite - Tambo + TanStack Router + Vite
+    analytics - Generative UI Analytics Template
+
+Creating a new Tambo app in /Users/you/my-tambo-app
+
+Selected template: standard
+
+✓ standard template downloaded successfully
+✓ Git repository initialized successfully
+✓ Dependencies installed successfully
+
+Running tambo init to complete setup...
+
+[Authentication flow runs here...]
+
+✓ Tambo initialization completed successfully
+
+Successfully created a new Tambo app
+Template: standard - Tambo + Tools + MCP (recommended)
+
+✓ Automatically completed:
+  • Git repository initialized
+  • Tambo initialization completed
+
+🎉 All setup complete! You're ready to go!
+
+Next steps:
+  1. cd my-tambo-app
+  2. npm run dev
+
+Learn More:
+  • Each component in your template comes with built-in documentation and examples
+  • Visit our UI showcase at https://ui.tambo.co to explore and learn about the components included in your template
+```
+
+## Non-Interactive Mode
+
+### Basic Usage
+
+Requires both `name` and `--template` in non-interactive environments:
+
+```bash
+tambo create-app my-app --template=standard
+```
+
+Output:
+
+```
+Creating a new Tambo app in /Users/you/my-app
+
+Using template: standard
+
+✓ standard template downloaded successfully
+✓ Git repository initialized successfully
+✓ Dependencies installed successfully
+
+Successfully created a new Tambo app
+Template: standard - Tambo + Tools + MCP (recommended)
+
+Next steps:
+  1. cd my-app
+  2. npx tambo init (required for setup)
+  3. npm run dev
+
+Learn More:
+  • Each component in your template comes with built-in documentation and examples
+  • Visit our UI showcase at https://ui.tambo.co to explore and learn about the components included in your template
+```
+
+Exit code: `0`
+
+**Note:** In non-interactive mode, `tambo init` is automatically skipped. Run it manually after creation.
+
+### Current Directory
+
+Use `.` to create in the current directory:
+
+```bash
+tambo create-app . --template=vite
+```
+
+Output:
+
+```
+Creating a new Tambo app in /Users/you/current-dir
+
+Using template: vite
+
+✓ vite template downloaded successfully
+...
+```
+
+Exit code: `0`
+
+**Requirements:**
+
+- Current directory must be empty
+- Must have write permissions
+
+### Skip Git Initialization
+
+```bash
+tambo create-app my-app --template=standard --skip-git-init
+```
+
+Skips the git init step. Useful if you'll initialize git manually later.
+
+Exit code: `0`
+
+### Skip Tambo Initialization
+
+```bash
+tambo create-app my-app --template=standard --skip-tambo-init
+```
+
+Skips the `tambo init` authentication flow. You can run it manually later.
+
+Exit code: `0`
+
+### With Legacy Peer Deps
+
+```bash
+tambo create-app my-app --template=standard --legacy-peer-deps
+```
+
+Passes `--legacy-peer-deps` to npm install (for dependency conflicts).
+
+Exit code: `0`
+
+## Error Handling
+
+### Missing Name (Non-Interactive)
+
+```bash
+tambo create-app  # No name provided
+```
+
+Output:
+
+```
+App name and template required in non-interactive mode
+
+You have a few options:
+  npx tambo create-app my-app --template=standard  # Recommended
+  npx tambo create-app my-app --template=vite      # Vite + TanStack Router
+  npx tambo create-app my-app --template=analytics # Analytics template
+  npx tambo create-app . --template=standard       # Current directory
+```
+
+Exit code: `2` (user action required)
+
+### Invalid Template
+
+```bash
+tambo create-app my-app --template=invalid
+```
+
+Output:
+
+```
+Template "invalid" not found.
+Available templates:
+  standard: Tambo + Tools + MCP (recommended)
+  vite: Tambo + TanStack Router + Vite
+  analytics: Generative UI Analytics Template
+
+Error creating app: Invalid template specified.
+```
+
+Exit code: `1`
+
+### Directory Already Exists
+
+```bash
+tambo create-app existing-dir --template=standard
+```
+
+Output:
+
+```
+Error creating app: Directory "existing-dir" already exists. Please choose a different name or use an empty directory.
+```
+
+Exit code: `1`
+
+### Network Failure
+
+```bash
+tambo create-app my-app --template=standard
+```
+
+If git clone fails:
+
+```
+✗ Failed to download standard template
+
+Error creating app: Failed to clone template repository. Please check your internet connection and try again.
+```
+
+Exit code: `1`
+
+## Exit Codes
+
+- `0` - Success
+- `1` - Error (template not found, directory exists, network failure, etc.)
+- `2` - User action required (non-interactive mode, missing arguments)
+
+## What Gets Created
+
+Each template includes:
+
+### File Structure
+
+```
+my-app/
+├── app/                    # Next.js app directory (or src/ for Vite)
+├── components/             # React components
+├── lib/                    # Utility functions
+├── public/                 # Static assets
+├── .env.example            # Environment variables template
+├── package.json            # Dependencies
+├── tsconfig.json           # TypeScript configuration
+├── tailwind.config.js      # Tailwind CSS configuration
+└── README.md               # Template documentation
+```
+
+### Dependencies
+
+All templates include:
+
+- `@tambo-ai/react` - Tambo React SDK
+- `react` + `react-dom` - React core
+- `typescript` - TypeScript
+- `tailwindcss` - Tailwind CSS
+
+### Git Repository
+
+- Initialized with `git init --initial-branch=main`
+- Initial commit: "Initial commit from Tambo {template} template"
+- Clean `.git` directory (template's git history removed)
+
+### package.json Updates
+
+- `name` field updated to match your app name
+- All other fields preserved from template
+
+## Common Workflows
+
+### Quick Start
+
+```bash
+# Interactive (recommended for first-time users)
+tambo create-app
+
+# Non-interactive (for scripts/CI)
+tambo create-app my-app --template=standard
+cd my-app
+npx tambo init --api-key=$TAMBO_API_KEY
+npm run dev
+```
+
+### CI/CD Pipeline
+
+```bash
+tambo create-app my-app --template=standard --skip-tambo-init
+cd my-app
+tambo init --api-key=$TAMBO_API_KEY --skip-agent-docs
+npm run build
+```
+
+### Local Development
+
+```bash
+# Create in current directory
+mkdir my-project && cd my-project
+tambo create-app . --template=vite
+npm run dev
+```
+
+### Skip Automatic Setup
+
+```bash
+tambo create-app my-app --template=standard --skip-git-init --skip-tambo-init
+cd my-app
+# Set up git and tambo manually
+git init
+tambo init
+```
+
+## After Creation
+
+### Start Development Server
+
+```bash
+cd my-app
+npm run dev
+```
+
+### Add Components
+
+```bash
+tambo add message-thread-full
+```
+
+### Deploy
+
+Each template includes deployment instructions in its README.md.
+
+Popular options:
+
+- **Vercel**: `vercel deploy`
+- **Netlify**: `netlify deploy`
+- **Railway**: `railway up`
+
+## Template Comparison
+
+| Feature           | standard | vite | analytics |
+| ----------------- | -------- | ---- | --------- |
+| Framework         | Next.js  | Vite | Next.js   |
+| Routing           | App      | TS   | App       |
+| MCP Integration   | ✓        | ✗    | ✗         |
+| Pre-built Tools   | ✓        | ✗    | ✗         |
+| Analytics Charts  | ✗        | ✗    | ✓         |
+| HMR Speed         | Medium   | Fast | Medium    |
+| Best For          | Full app | SPA  | Dashboards|
+
+## Troubleshooting
+
+### Permission Denied
+
+```bash
+sudo chown -R $(whoami) .
+tambo create-app my-app --template=standard
+```
+
+### Git Not Installed
+
+```bash
+tambo create-app my-app --template=standard --skip-git-init
+```
+
+### Slow Network
+
+Templates are cloned with `--depth 1` to minimize download size. If still slow, check your internet connection.
+
+### Dependency Conflicts
+
+```bash
+tambo create-app my-app --template=standard --legacy-peer-deps
+```

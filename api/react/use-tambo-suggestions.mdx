@@ -1,0 +1,532 @@
+---
+title: useTamboSuggestions()
+description: Hook for managing AI-powered message suggestions
+---
+
+## Overview
+
+The `useTamboSuggestions()` hook manages AI-powered suggestions for thread messages. It automatically generates contextual suggestions when an assistant message arrives and provides functionality to accept and use those suggestions.
+
+Suggestions are intelligent follow-up prompts that help users continue the conversation naturally.
+
+## Import
+
+```tsx
+import { useTamboSuggestions } from '@tambo-ai/react';
+```
+
+## Usage
+
+```tsx
+import { useTamboSuggestions } from '@tambo-ai/react';
+
+function SuggestionsPanel() {
+  const {
+    suggestions,
+    accept,
+    isLoading,
+    selectedSuggestionId,
+  } = useTamboSuggestions();
+
+  if (isLoading) return <div>Loading suggestions...</div>;
+
+  return (
+    <div className="suggestions">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion.id}
+          onClick={() => accept({ suggestion })}
+          className={selectedSuggestionId === suggestion.id ? 'selected' : ''}
+        >
+          {suggestion.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+## Parameters
+
+<ParamField path="options" type="UseTamboSuggestionsOptions">
+  Configuration options for the suggestions hook.
+  
+  **Properties:**
+  
+  - `maxSuggestions?: number` - Maximum number of suggestions to generate (1-10, default: 3)
+  - `autoGenerate?: boolean` - Whether to automatically generate suggestions when the latest message is from the assistant (default: true)
+  - `queryOptions?: UseQueryOptions` - Additional React Query options for customizing caching, refetching behavior, etc.
+</ParamField>
+
+## Return Value
+
+### Data
+
+<ResponseField name="data" type="SuggestionsQueryResponse | undefined">
+  The raw response data from the suggestions query. Use this for direct access to the API response shape.
+</ResponseField>
+
+<ResponseField name="suggestions" type="Suggestion[]">
+  Array of available suggestions for the current message (convenience accessor).
+  
+  Each suggestion has:
+  - `id: string` - Unique identifier
+  - `title: string` - Short title to display
+  - `detailedSuggestion: string` - Full suggestion text to submit
+</ResponseField>
+
+### Query State
+
+<ResponseField name="isLoading" type="boolean">
+  Whether the suggestions query is loading (first fetch).
+</ResponseField>
+
+<ResponseField name="isSuccess" type="boolean">
+  Whether suggestions have been successfully loaded.
+</ResponseField>
+
+<ResponseField name="isError" type="boolean">
+  Whether there was an error loading suggestions.
+</ResponseField>
+
+<ResponseField name="error" type="Error | null">
+  Error from loading suggestions, if any.
+</ResponseField>
+
+<ResponseField name="isFetching" type="boolean">
+  Whether the query is currently fetching (includes background refetches).
+</ResponseField>
+
+### Generate Mutation
+
+<ResponseField name="generate" type="() => Promise<SuggestionCreateResponse | undefined>">
+  Manually generate new suggestions for the current message.
+  
+  Use this when `autoGenerate` is false or to refresh suggestions.
+</ResponseField>
+
+<ResponseField name="isGenerating" type="boolean">
+  Whether suggestions are being generated (mutation pending).
+</ResponseField>
+
+<ResponseField name="generateError" type="Error | null">
+  Error from generating suggestions, if any.
+</ResponseField>
+
+### Accept Mutation
+
+<ResponseField name="accept" type="(options: AcceptSuggestionOptions) => Promise<void>">
+  Accept and apply a suggestion. Sets the suggestion text as input value, optionally submitting it.
+  
+  **Parameters:**
+  - `suggestion: Suggestion` - The suggestion to accept
+  - `shouldSubmit?: boolean` - Whether to automatically submit after accepting (default: false)
+</ResponseField>
+
+<ResponseField name="isAccepting" type="boolean">
+  Whether accepting a suggestion is in progress.
+</ResponseField>
+
+<ResponseField name="acceptError" type="Error | null">
+  Error from accepting a suggestion, if any.
+</ResponseField>
+
+### UI State
+
+<ResponseField name="selectedSuggestionId" type="string | null">
+  ID of the currently selected suggestion (after accepting).
+</ResponseField>
+
+## Type Definitions
+
+### UseTamboSuggestionsOptions
+
+```tsx
+interface UseTamboSuggestionsOptions {
+  /**
+   * Maximum number of suggestions to generate (1-10, default 3)
+   */
+  maxSuggestions?: number;
+  
+  /**
+   * Whether to automatically generate suggestions when the latest message
+   * is from the assistant. Default: true
+   */
+  autoGenerate?: boolean;
+  
+  /**
+   * Additional React Query options for the suggestions query.
+   * Allows customizing caching, refetching behavior, etc.
+   */
+  queryOptions?: Omit<
+    UseQueryOptions<SuggestionsQueryResponse>,
+    'queryKey' | 'queryFn' | 'enabled'
+  >;
+}
+```
+
+### AcceptSuggestionOptions
+
+```tsx
+interface AcceptSuggestionOptions {
+  /**
+   * The suggestion to accept
+   */
+  suggestion: Suggestion;
+  
+  /**
+   * Whether to automatically submit the suggestion after accepting.
+   * Default: false
+   */
+  shouldSubmit?: boolean;
+}
+```
+
+### Suggestion
+
+```tsx
+interface Suggestion {
+  /**
+   * Unique identifier for the suggestion
+   */
+  id: string;
+  
+  /**
+   * Short title to display in UI
+   */
+  title: string;
+  
+  /**
+   * Full suggestion text to submit
+   */
+  detailedSuggestion: string;
+}
+```
+
+### UseTamboSuggestionsReturn
+
+```tsx
+interface UseTamboSuggestionsReturn {
+  // Data
+  data: SuggestionsQueryResponse | undefined;
+  suggestions: Suggestion[];
+  
+  // Query state
+  isLoading: boolean;
+  isSuccess: boolean;
+  isError: boolean;
+  error: Error | null;
+  isFetching: boolean;
+  
+  // Generate mutation
+  generate: () => Promise<SuggestionCreateResponse | undefined>;
+  isGenerating: boolean;
+  generateError: Error | null;
+  
+  // Accept mutation
+  accept: (options: AcceptSuggestionOptions) => Promise<void>;
+  isAccepting: boolean;
+  acceptError: Error | null;
+  
+  // UI state
+  selectedSuggestionId: string | null;
+}
+```
+
+## Examples
+
+### Basic Suggestions
+
+```tsx
+function SimpleSuggestions() {
+  const { suggestions, accept, isLoading } = useTamboSuggestions();
+
+  if (isLoading) return null;
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div className="suggestions">
+      <p>You might want to ask:</p>
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion.id}
+          onClick={() => accept({ suggestion })}
+        >
+          {suggestion.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### Auto-Submit Suggestions
+
+```tsx
+function QuickSuggestions() {
+  const { suggestions, accept, isAccepting } = useTamboSuggestions();
+
+  return (
+    <div className="quick-suggestions">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion.id}
+          onClick={() => accept({ suggestion, shouldSubmit: true })}
+          disabled={isAccepting}
+        >
+          {suggestion.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### Custom Max Suggestions
+
+```tsx
+function ManySuggestions() {
+  const { suggestions, accept } = useTamboSuggestions({
+    maxSuggestions: 5,
+  });
+
+  return (
+    <div className="suggestion-grid">
+      {suggestions.map((suggestion) => (
+        <div key={suggestion.id} className="suggestion-card">
+          <h4>{suggestion.title}</h4>
+          <button onClick={() => accept({ suggestion })}>
+            Use this suggestion
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Manual Generation
+
+```tsx
+function ManualSuggestions() {
+  const {
+    suggestions,
+    accept,
+    generate,
+    isGenerating,
+  } = useTamboSuggestions({
+    autoGenerate: false,
+  });
+
+  return (
+    <div>
+      <button onClick={() => generate()} disabled={isGenerating}>
+        {isGenerating ? 'Generating...' : 'Get Suggestions'}
+      </button>
+      
+      {suggestions.length > 0 && (
+        <div className="suggestions">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.id}
+              onClick={() => accept({ suggestion })}
+            >
+              {suggestion.title}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### With Loading States
+
+```tsx
+function SuggestionsWithLoading() {
+  const {
+    suggestions,
+    accept,
+    isLoading,
+    isGenerating,
+    isAccepting,
+    selectedSuggestionId,
+  } = useTamboSuggestions();
+
+  if (isLoading || isGenerating) {
+    return (
+      <div className="suggestions-loading">
+        <Spinner />
+        <span>Generating suggestions...</span>
+      </div>
+    );
+  }
+
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div className="suggestions">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion.id}
+          onClick={() => accept({ suggestion })}
+          disabled={isAccepting}
+          className={selectedSuggestionId === suggestion.id ? 'selected' : ''}
+        >
+          {suggestion.title}
+          {isAccepting && selectedSuggestionId === suggestion.id && (
+            <Spinner size="small" />
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### With Error Handling
+
+```tsx
+function SuggestionsWithErrors() {
+  const {
+    suggestions,
+    accept,
+    isError,
+    error,
+    generate,
+    generateError,
+    acceptError,
+  } = useTamboSuggestions();
+
+  if (isError || generateError) {
+    return (
+      <div className="error">
+        <p>Failed to load suggestions: {error?.message || generateError?.message}</p>
+        <button onClick={() => generate()}>Retry</button>
+      </div>
+    );
+  }
+
+  if (acceptError) {
+    return (
+      <div className="error">
+        <p>Failed to accept suggestion: {acceptError.message}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="suggestions">
+      {suggestions.map((suggestion) => (
+        <button
+          key={suggestion.id}
+          onClick={() => accept({ suggestion })}
+        >
+          {suggestion.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### Rich Suggestion Cards
+
+```tsx
+function RichSuggestions() {
+  const { suggestions, accept } = useTamboSuggestions();
+
+  return (
+    <div className="suggestion-cards">
+      {suggestions.map((suggestion) => (
+        <div key={suggestion.id} className="suggestion-card">
+          <h3>{suggestion.title}</h3>
+          <p className="preview">{suggestion.detailedSuggestion}</p>
+          <div className="actions">
+            <button onClick={() => accept({ suggestion })}>
+              Fill Input
+            </button>
+            <button onClick={() => accept({ suggestion, shouldSubmit: true })}>
+              Send Now
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Keyboard Navigation
+
+```tsx
+function KeyboardSuggestions() {
+  const { suggestions, accept } = useTamboSuggestions();
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (suggestions.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((i) => (i + 1) % suggestions.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        accept({ suggestion: suggestions[selectedIndex] });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [suggestions, selectedIndex, accept]);
+
+  return (
+    <div className="suggestions">
+      {suggestions.map((suggestion, index) => (
+        <button
+          key={suggestion.id}
+          onClick={() => accept({ suggestion })}
+          className={index === selectedIndex ? 'focused' : ''}
+          onMouseEnter={() => setSelectedIndex(index)}
+        >
+          {suggestion.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+## Behavior Notes
+
+### Automatic Generation
+
+By default, suggestions are automatically generated when:
+- The latest message is from the assistant
+- The thread is idle (not streaming)
+- No suggestions exist for the current message
+
+### Shared Input State
+
+Suggestions integrate with `useTamboThreadInput()` to update the shared input field. This means:
+- Accepting a suggestion updates the input for all components using the input hook
+- Users can modify the suggestion text before submitting
+- Suggestions work seamlessly with other input features like image attachments
+
+### Cache Management
+
+Suggestions are cached per message. When you:
+- Switch messages, the selected suggestion is reset
+- Generate new suggestions, the cache is updated
+- The suggestions remain available even after accepting one
+
+## Related
+
+- [useTamboThreadInput()](/api/react/use-tambo-thread-input) - Shared input state management
+- [useTambo()](/api/react/use-tambo) - Main hook for thread state
+- [Suggestions Guide](/concepts/suggestions)

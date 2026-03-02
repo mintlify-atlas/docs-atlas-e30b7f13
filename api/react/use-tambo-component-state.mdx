@@ -1,0 +1,371 @@
+---
+title: useTamboComponentState()
+description: Hook for managing component state with bidirectional server sync
+---
+
+## Overview
+
+The `useTamboComponentState()` hook provides bidirectional state synchronization between React components and the Tambo backend. State changes are debounced before syncing to the server, and server state updates are reflected in the component.
+
+This hook works in three modes:
+- **Rendered components**: Syncs state bidirectionally with the server
+- **Interactable components**: Syncs state via the interactable provider
+- **No context yet**: Acts as plain `useState` (no side effects) until a provider wraps the component
+
+## Import
+
+```tsx
+import { useTamboComponentState } from '@tambo-ai/react';
+```
+
+## Usage
+
+```tsx
+import { useTamboComponentState } from '@tambo-ai/react';
+
+function Counter() {
+  const [count, setCount, { isPending }] = useTamboComponentState('count', 0);
+
+  return (
+    <div>
+      <span>{count}</span>
+      <button 
+        onClick={() => setCount(c => c + 1)} 
+        disabled={isPending}
+      >
+        Increment
+      </button>
+    </div>
+  );
+}
+```
+
+## Parameters
+
+<ParamField path="keyName" type="string" required>
+  The unique key to identify this state value within the component's state. Must be unique within the component.
+</ParamField>
+
+<ParamField path="initialValue" type="S">
+  Initial value for the state. Used if no server state exists yet. If not provided, the state type will be `S | undefined`.
+</ParamField>
+
+<ParamField path="debounceTime" type="number" default="500">
+  Debounce time in milliseconds before syncing state changes to the server. Helps reduce API calls during rapid updates.
+</ParamField>
+
+## Return Value
+
+Returns a tuple similar to `useState`, but with additional metadata:
+
+```tsx
+[
+  currentState: S,
+  setState: (newState: S | ((prev: S) => S)) => void,
+  meta: { isPending: boolean; error: Error | null; flush: () => void }
+]
+```
+
+<ResponseField name="[0] currentState" type="S">
+  The current state value. Updates from both local changes and server synchronization.
+</ResponseField>
+
+<ResponseField name="[1] setState" type="(newState: S | ((prev: S) => S)) => void">
+  Function to update the state. Accepts either a new value or a function that receives the previous value.
+  
+  Updates are debounced before being sent to the server (rendered components) or interactable provider (interactable components).
+  
+  ```tsx
+  setState(42);
+  setState(prev => prev + 1);
+  ```
+</ResponseField>
+
+<ResponseField name="[2].isPending" type="boolean">
+  Whether a state update is currently pending (being synced to the server). Use this to disable UI controls during sync.
+</ResponseField>
+
+<ResponseField name="[2].error" type="Error | null">
+  Error from the last failed state sync, if any. Errors are also logged to the console.
+</ResponseField>
+
+<ResponseField name="[2].flush" type="() => void">
+  Force immediate synchronization of pending state changes, bypassing the debounce timer.
+  
+  Useful when you need to ensure state is synced before unmounting or navigating away.
+</ResponseField>
+
+## Type Definitions
+
+### UseTamboComponentStateReturn
+
+```tsx
+type UseTamboComponentStateReturn<S> = [
+  currentState: S,
+  setState: (newState: S | ((prev: S) => S)) => void,
+  meta: {
+    isPending: boolean;
+    error: Error | null;
+    flush: () => void;
+  }
+];
+```
+
+### Function Signatures
+
+```tsx
+// With initial value (state is always S)
+function useTamboComponentState<S>(
+  keyName: string,
+  initialValue: S,
+  debounceTime?: number
+): UseTamboComponentStateReturn<S>;
+
+// Without initial value (state may be undefined)
+function useTamboComponentState<S = undefined>(
+  keyName: string,
+  initialValue?: S,
+  debounceTime?: number
+): UseTamboComponentStateReturn<S | undefined>;
+```
+
+## Examples
+
+### Basic Counter
+
+```tsx
+function Counter() {
+  const [count, setCount, { isPending }] = useTamboComponentState('count', 0);
+
+  return (
+    <div>
+      <p>Count: {count}</p>
+      <button
+        onClick={() => setCount(c => c + 1)}
+        disabled={isPending}
+      >
+        {isPending ? 'Saving...' : 'Increment'}
+      </button>
+    </div>
+  );
+}
+```
+
+### Toggle with Visual Feedback
+
+```tsx
+function ToggleSwitch() {
+  const [isEnabled, setIsEnabled, { isPending, error }] = 
+    useTamboComponentState('enabled', false);
+
+  return (
+    <div>
+      <button
+        onClick={() => setIsEnabled(!isEnabled)}
+        className={isPending ? 'opacity-50' : ''}
+        disabled={isPending}
+      >
+        {isEnabled ? 'On' : 'Off'}
+      </button>
+      {error && (
+        <span className="error">Failed to save: {error.message}</span>
+      )}
+    </div>
+  );
+}
+```
+
+### Form with Multiple Fields
+
+```tsx
+function ProfileForm() {
+  const [name, setName, nameMeta] = useTamboComponentState('name', '');
+  const [email, setEmail, emailMeta] = useTamboComponentState('email', '');
+  const [bio, setBio, bioMeta] = useTamboComponentState('bio', '');
+
+  const isAnySaving = nameMeta.isPending || emailMeta.isPending || bioMeta.isPending;
+
+  return (
+    <form>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Name"
+      />
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+      />
+      <textarea
+        value={bio}
+        onChange={(e) => setBio(e.target.value)}
+        placeholder="Bio"
+      />
+      {isAnySaving && <span>Saving changes...</span>}
+    </form>
+  );
+}
+```
+
+### With Manual Flush
+
+```tsx
+function EditableNote() {
+  const [content, setContent, { isPending, flush }] = 
+    useTamboComponentState('content', '');
+
+  const handleBeforeUnload = useCallback(() => {
+    // Ensure pending changes are saved before leaving
+    flush();
+  }, [flush]);
+
+  useEffect(() => {
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Also flush on unmount
+      flush();
+    };
+  }, [handleBeforeUnload, flush]);
+
+  return (
+    <textarea
+      value={content}
+      onChange={(e) => setContent(e.target.value)}
+      placeholder="Start typing..."
+    />
+  );
+}
+```
+
+### Complex State Objects
+
+```tsx
+interface Settings {
+  theme: 'light' | 'dark';
+  fontSize: number;
+  notifications: boolean;
+}
+
+function SettingsPanel() {
+  const [settings, setSettings, { isPending }] = 
+    useTamboComponentState<Settings>('settings', {
+      theme: 'light',
+      fontSize: 16,
+      notifications: true,
+    });
+
+  return (
+    <div>
+      <select
+        value={settings.theme}
+        onChange={(e) => setSettings(prev => ({
+          ...prev,
+          theme: e.target.value as 'light' | 'dark'
+        }))}
+      >
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+      
+      <input
+        type="number"
+        value={settings.fontSize}
+        onChange={(e) => setSettings(prev => ({
+          ...prev,
+          fontSize: parseInt(e.target.value)
+        }))}
+      />
+      
+      <label>
+        <input
+          type="checkbox"
+          checked={settings.notifications}
+          onChange={(e) => setSettings(prev => ({
+            ...prev,
+            notifications: e.target.checked
+          }))}
+        />
+        Enable Notifications
+      </label>
+      
+      {isPending && <span>Saving...</span>}
+    </div>
+  );
+}
+```
+
+### With Optional Initial Value
+
+```tsx
+function OptionalField() {
+  // State type is string | undefined
+  const [value, setValue, { isPending }] = 
+    useTamboComponentState<string>('optionalField');
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={value ?? ''}
+        onChange={(e) => setValue(e.target.value || undefined)}
+        placeholder="Optional field"
+      />
+      {value === undefined && <span>Not set</span>}
+      {isPending && <span>Syncing...</span>}
+    </div>
+  );
+}
+```
+
+### Custom Debounce Time
+
+```tsx
+function SearchFilter() {
+  // Sync more frequently for search queries
+  const [query, setQuery, { isPending }] = 
+    useTamboComponentState('searchQuery', '', 200);
+
+  return (
+    <input
+      type="search"
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      placeholder="Search..."
+    />
+  );
+}
+```
+
+## Behavior Notes
+
+### Debouncing
+
+State changes are debounced before syncing to reduce API calls during rapid updates (e.g., typing). The default debounce time is 500ms, but can be customized.
+
+### Server Reconciliation
+
+The hook prevents stale server updates from overwriting local changes:
+- If a local change is pending, server updates are ignored
+- If a server update matches the last sent value, it's ignored
+- Only truly new server values update the local state
+
+### Error Handling
+
+Errors during state sync are:
+- Stored in the `error` field of the metadata
+- Logged to the console with context
+- Do not reject or throw - the component continues working with local state
+
+### Unmount Behavior
+
+Pending state changes are automatically flushed when the component unmounts (rendered components only). For critical data, you may want to manually call `flush()` before navigation.
+
+## Related
+
+- [useTamboStreamStatus()](/api/react/use-tambo-stream-status) - Monitor streaming status
+- [withTamboInteractable()](/api/react/with-interactable) - Make components interactable
+- [Component State Guide](/concepts/generative-interfaces/component-state)

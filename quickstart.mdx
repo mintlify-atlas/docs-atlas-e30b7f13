@@ -1,80 +1,258 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get from zero to working Tambo app in 5 minutes
 ---
 
-## Get started in three steps
+This guide walks you through creating a Tambo app from scratch. You'll have a working chat interface with AI-powered component rendering in under 5 minutes.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+- Node.js 22 or higher
+- npm 11 or higher
+- A code editor
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Create a new project
 
-### Step 2: Deploy your changes
+<Steps>
+  <Step title="Create your app">
+    Use the Tambo app generator to create a new project:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash
+    npm create tambo-app my-tambo-app
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    This creates a new directory with a Next.js app pre-configured for Tambo.
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Navigate to your project">
+    ```bash
+    cd my-tambo-app
+    ```
+  </Step>
 
-### Step 3: Go live
+  <Step title="Initialize Tambo">
+    Run the initialization command:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    ```bash
+    npx tambo init
+    ```
+
+    You'll be prompted to choose between:
+    - **Tambo Cloud** (hosted, free to start)
+    - **Self-hosted** (run on your infrastructure)
+
+    The CLI will guide you through getting an API key.
+  </Step>
+
+  <Step title="Start the dev server">
+    ```bash
+    npm run dev
+    ```
+
+    Open [http://localhost:3000](http://localhost:3000) in your browser.
+  </Step>
+</Steps>
+
+<Tip>The template includes a working chat interface. Try asking "Show me a graph" or "Create a form" to see generative UI in action.</Tip>
+
+## Add to existing project
+
+If you have an existing Next.js app:
+
+<Steps>
+  <Step title="Install Tambo">
+    ```bash
+    npm install @tambo-ai/react zod
+    ```
+  </Step>
+
+  <Step title="Initialize Tambo">
+    ```bash
+    npx tambo init
+    ```
+
+    This sets up your API key and configuration.
+  </Step>
+
+  <Step title="Wrap your app with TamboProvider">
+    Update your root layout:
+
+    ```tsx app/layout.tsx
+    "use client";
+
+    import { TamboProvider } from "@tambo-ai/react";
+
+    export default function RootLayout({ children }) {
+      return (
+        <html lang="en">
+          <body>
+            <TamboProvider
+              apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY}
+              userKey="demo-user" // Replace with actual user ID
+            >
+              {children}
+            </TamboProvider>
+          </body>
+        </html>
+      );
+    }
+    ```
+
+    <Note>You must provide either `userKey` or `userToken` to identify the thread owner. See [User Authentication](/concepts/user-authentication) for details.</Note>
+  </Step>
+
+  <Step title="Build your chat interface">
+    Create a simple chat component:
+
+    ```tsx app/page.tsx
+    "use client";
+
+    import { useTambo, useTamboThreadInput } from "@tambo-ai/react";
+
+    export default function ChatPage() {
+      const { messages, isStreaming } = useTambo();
+      const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+      return (
+        <main className="flex flex-col h-screen p-4">
+          <div className="flex-1 overflow-y-auto space-y-4">
+            {messages.map((msg) => (
+              <div key={msg.id} className="p-4 rounded-lg bg-gray-100">
+                {msg.content.map((content, i) => {
+                  if (content.type === "text") {
+                    return <p key={i}>{content.text}</p>;
+                  }
+                  if (content.type === "component") {
+                    return (
+                      <div key={i}>
+                        Component: {content.componentName}
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            ))}
+            {isStreaming && <div>AI is thinking...</div>}
+          </div>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await submit();
+            }}
+            className="flex gap-2 mt-4"
+          >
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 p-2 border rounded"
+            />
+            <button
+              type="submit"
+              disabled={isPending}
+              className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+            >
+              Send
+            </button>
+          </form>
+        </main>
+      );
+    }
+    ```
+  </Step>
+</Steps>
+
+## Register your first component
+
+Let's register a simple component so the AI can render it:
+
+```tsx app/layout.tsx
+"use client";
+
+import { TamboProvider } from "@tambo-ai/react";
+import { z } from "zod";
+
+// Define a simple Weather component
+function WeatherCard({ location, temperature, condition }) {
+  return (
+    <div className="p-4 border rounded-lg">
+      <h3 className="font-bold">{location}</h3>
+      <p className="text-2xl">{temperature}°C</p>
+      <p className="text-gray-600">{condition}</p>
+    </div>
+  );
+}
+
+// Register the component
+const components = [
+  {
+    name: "WeatherCard",
+    description: "Displays weather information for a location",
+    component: WeatherCard,
+    propsSchema: z.object({
+      location: z.string(),
+      temperature: z.number(),
+      condition: z.string(),
+    }),
+  },
+];
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>
+        <TamboProvider
+          apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY}
+          userKey="demo-user"
+          components={components}
+        >
+          {children}
+        </TamboProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+Now try asking: "Show me the weather in San Francisco"
+
+## Add pre-built components
+
+Tambo includes a library of pre-built components:
+
+```bash
+npx tambo add form
+npx tambo add graph
+npx tambo add message-thread-full
+```
+
+See the [component library](https://ui.tambo.co) for the full list.
+
+## What you built
+
+You now have:
+
+- A working chat interface
+- A registered component the AI can use
+- Streaming responses from the LLM
+- Thread persistence (messages are saved)
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Core concepts" icon="book" href="/concepts/generative-interfaces/generative-components">
+    Learn about generative and interactable components
+  </Card>
+  <Card title="Register tools" icon="wrench" href="/guides/take-actions/register-tools">
+    Add functions the AI can call
+  </Card>
+  <Card title="MCP integration" icon="plug" href="/concepts/model-context-protocol">
+    Connect to external services
+  </Card>
+  <Card title="Component library" icon="grid" href="https://ui.tambo.co">
+    Browse pre-built components
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

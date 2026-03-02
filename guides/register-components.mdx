@@ -1,0 +1,265 @@
+---
+title: Register Components with Zod Schemas
+description: Learn how to register React components so the AI can render them dynamically
+---
+
+## Overview
+
+Component registration tells Tambo which React components the AI can render and how to use them. By providing a Zod schema for props, the AI understands what data each component needs and can stream props in real-time.
+
+## Component Types
+
+Tambo supports two types of components:
+
+- **Generative Components** - Render once in response to a message (charts, summaries, visualizations)
+- **Interactable Components** - Persist and update as users refine requests (task boards, shopping carts, forms)
+
+<Steps>
+
+### Install Zod
+
+First, install Zod if you haven't already:
+
+```bash
+npm install zod
+```
+
+Tambo supports both Zod v3 and v4. You can also use other Standard Schema-compliant validators like Valibot or ArkType.
+
+### Define Your Component
+
+Create a React component that will be rendered by the AI:
+
+```tsx title="components/weather-card.tsx"
+import React from 'react';
+
+interface WeatherCardProps {
+  location: string;
+  temperature: number;
+  condition: string;
+  humidity?: number;
+}
+
+export const WeatherCard: React.FC<WeatherCardProps> = ({
+  location,
+  temperature,
+  condition,
+  humidity,
+}) => (
+  <div className="weather-card">
+    <h2>{location}</h2>
+    <div className="temp">{temperature}°F</div>
+    <div className="condition">{condition}</div>
+    {humidity && <div className="humidity">Humidity: {humidity}%</div>}
+  </div>
+);
+```
+
+### Create the Component Schema
+
+Define a Zod schema that matches your component's props:
+
+```tsx title="components/weather-card.tsx"
+import { z } from 'zod';
+
+export const weatherCardSchema = z.object({
+  location: z.string().describe('The city and state/country'),
+  temperature: z.number().describe('Temperature in Fahrenheit'),
+  condition: z.string().describe('Weather condition (sunny, cloudy, rainy, etc.)'),
+  humidity: z.number().optional().describe('Humidity percentage (0-100)'),
+});
+```
+
+<Note>
+  Use `.describe()` to add descriptions that help the AI understand each field's purpose.
+</Note>
+
+### Register the Component
+
+Create a `TamboComponent` registration object:
+
+```tsx title="lib/tambo-components.ts"
+import { TamboComponent } from '@tambo-ai/react';
+import { WeatherCard, weatherCardSchema } from '@/components/weather-card';
+
+export const components: TamboComponent[] = [
+  {
+    name: 'WeatherCard',
+    description: 'Displays current weather information for a location. Use this when the user asks about weather conditions.',
+    component: WeatherCard,
+    propsSchema: weatherCardSchema,
+  },
+];
+```
+
+<Tip>
+  Write clear, detailed descriptions. The AI uses these to decide which component to render.
+</Tip>
+
+### Add to TamboProvider
+
+Pass your components array to `TamboProvider`:
+
+```tsx title="app/layout.tsx"
+import { TamboProvider } from '@tambo-ai/react';
+import { components } from '@/lib/tambo-components';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <TamboProvider
+          apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+          userKey="user-123"
+          components={components}
+        >
+          {children}
+        </TamboProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+</Steps>
+
+## Multiple Components
+
+Register multiple components by adding them to the array:
+
+```tsx title="lib/tambo-components.ts"
+import { TamboComponent } from '@tambo-ai/react';
+import { WeatherCard, weatherCardSchema } from '@/components/weather-card';
+import { StockChart, stockChartSchema } from '@/components/stock-chart';
+import { TaskList, taskListSchema } from '@/components/task-list';
+
+export const components: TamboComponent[] = [
+  {
+    name: 'WeatherCard',
+    description: 'Displays current weather information',
+    component: WeatherCard,
+    propsSchema: weatherCardSchema,
+  },
+  {
+    name: 'StockChart',
+    description: 'Renders a stock price chart with historical data',
+    component: StockChart,
+    propsSchema: stockChartSchema,
+  },
+  {
+    name: 'TaskList',
+    description: 'Displays a list of tasks with checkboxes',
+    component: TaskList,
+    propsSchema: taskListSchema,
+  },
+];
+```
+
+## Loading States
+
+Provide a loading component to show while props are streaming:
+
+```tsx
+import { Skeleton } from '@/components/ui/skeleton';
+
+const WeatherCardSkeleton = () => (
+  <div className="weather-card">
+    <Skeleton className="h-8 w-32 mb-2" />
+    <Skeleton className="h-12 w-20 mb-2" />
+    <Skeleton className="h-6 w-24" />
+  </div>
+);
+
+export const components: TamboComponent[] = [
+  {
+    name: 'WeatherCard',
+    description: 'Displays current weather information',
+    component: WeatherCard,
+    loadingComponent: WeatherCardSkeleton,
+    propsSchema: weatherCardSchema,
+  },
+];
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive component names">
+    Choose names that clearly indicate what the component does. `WeatherCard` is better than `Card1`.
+  </Accordion>
+
+  <Accordion title="Write detailed descriptions">
+    Include when to use the component and what scenarios it's appropriate for. The AI uses this to make decisions.
+  </Accordion>
+
+  <Accordion title="Add field descriptions to schemas">
+    Use `.describe()` on each schema field to help the AI understand what data to provide.
+  </Accordion>
+
+  <Accordion title="Keep schemas aligned with props">
+    Your Zod schema should match your TypeScript prop types. Use `z.infer<typeof schema>` to derive types:
+    
+    ```tsx
+    const weatherCardSchema = z.object({
+      location: z.string(),
+      temperature: z.number(),
+    });
+    
+    type WeatherCardProps = z.infer<typeof weatherCardSchema>;
+    
+    export const WeatherCard: React.FC<WeatherCardProps> = (props) => {
+      // ...
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Use enums for limited options">
+    When a prop has specific valid values, use `z.enum()`:
+    
+    ```tsx
+    const chartSchema = z.object({
+      type: z.enum(['line', 'bar', 'pie']),
+      data: z.array(z.object({ name: z.string(), value: z.number() })),
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Component not rendering">
+    - Verify the component is in the `components` array passed to `TamboProvider`
+    - Check that the `name` field matches what you expect
+    - Ensure the AI's response includes your component (check the message content)
+  </Accordion>
+
+  <Accordion title="Props not streaming correctly">
+    - Confirm your schema matches the expected prop types
+    - Check for TypeScript errors in the component
+    - Verify the schema validates the incoming data
+  </Accordion>
+
+  <Accordion title="AI choosing wrong component">
+    - Make descriptions more specific and detailed
+    - Add examples of when to use each component
+    - Ensure component names are distinct and clear
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Interactable Components" icon="arrows-rotate" href="/concepts/generative-interfaces/interactable-components">
+    Create components that persist and update
+  </Card>
+  <Card title="Register Tools" icon="wrench" href="/guides/register-tools">
+    Add functions the AI can call
+  </Card>
+  <Card title="Component State" icon="database" href="/guides/component-state">
+    Manage state inside AI-rendered components
+  </Card>
+  <Card title="Streaming Status" icon="signal" href="/reference/react-sdk/hooks/use-tambo-stream-status">
+    Monitor prop streaming progress
+  </Card>
+</CardGroup>

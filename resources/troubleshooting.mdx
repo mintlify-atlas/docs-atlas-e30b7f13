@@ -1,0 +1,507 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for Tambo AI development
+---
+
+This guide covers common issues you may encounter when working with Tambo and how to resolve them.
+
+## Installation Issues
+
+### npm Install Fails
+
+**Problem**: `npm install` fails with dependency resolution errors.
+
+**Solution**:
+
+```bash
+# Clear npm cache
+npm cache clean --force
+
+# Remove node_modules and lock file
+rm -rf node_modules package-lock.json
+
+# Reinstall
+npm install
+```
+
+**Node.js Version**: Ensure you're using Node.js >=22:
+
+```bash
+node --version  # Should show v22.x.x or higher
+```
+
+Install the correct version:
+
+```bash
+# Using nvm
+nvm install 22
+nvm use 22
+
+# Using mise (recommended)
+mise install
+```
+
+### Package Manager Issues
+
+**Problem**: Wrong package manager detected by CLI.
+
+**Solution**: The CLI auto-detects your package manager. Override with:
+
+```bash
+# Force npm
+tambo add message --package-manager=npm
+
+# Force pnpm
+tambo add message --package-manager=pnpm
+
+# Force yarn
+tambo add message --package-manager=yarn
+```
+
+## Authentication Issues
+
+### API Key Not Found
+
+**Problem**: "API key not found" error when running app.
+
+**Solution**:
+
+1. Check environment variable is set:
+
+```bash
+# Next.js
+echo $NEXT_PUBLIC_TAMBO_API_KEY
+
+# Vite
+echo $VITE_TAMBO_API_KEY
+```
+
+2. Verify .env file exists and has correct prefix:
+
+```bash
+# Next.js - .env.local
+NEXT_PUBLIC_TAMBO_API_KEY=sk_...
+
+# Vite - .env
+VITE_TAMBO_API_KEY=sk_...
+```
+
+3. Restart dev server after changing .env:
+
+```bash
+npm run dev
+```
+
+### Invalid API Key
+
+**Problem**: "Invalid API key" or 401 errors.
+
+**Solution**:
+
+1. Generate new key at [Tambo Cloud](https://app.tambo.co)
+2. Verify key is correctly copied (no extra spaces)
+3. Check key format: `sk_live_...` or `sk_test_...`
+
+### Authentication Required for CLI
+
+**Problem**: CLI commands require authentication.
+
+**Solution**:
+
+```bash
+# Login with browser
+tambo auth login
+
+# Login without browser (for SSH/remote)
+tambo auth login --no-browser
+# Copy URL and open in local browser
+```
+
+## Streaming Issues
+
+### No Streaming Updates
+
+**Problem**: Components don't update during AI response.
+
+**Solution**:
+
+1. Verify streamable hint is enabled:
+
+```typescript
+const components: TamboComponent[] = [
+  {
+    name: "MyComponent",
+    streamable: true, // Add this
+    component: MyComponent,
+    propsSchema: z.object({...}),
+  },
+];
+```
+
+2. Check component uses streaming status:
+
+```typescript
+const { propStatus } = useTamboComponentState("myKey", initialState);
+
+if (propStatus.isPending) {
+  return <div>Loading...</div>;
+}
+```
+
+### Streaming Stops Mid-Response
+
+**Problem**: Streaming cuts off before completion.
+
+**Solution**:
+
+1. Check network connection
+2. Verify API endpoint is accessible
+3. Check for rate limiting (429 errors)
+4. Increase timeout if using custom fetch:
+
+```typescript
+const client = new TamboClient({
+  apiKey: "...",
+  timeout: 60000, // 60 seconds
+});
+```
+
+## Component Issues
+
+### Component Not Rendering
+
+**Problem**: AI-generated components don't appear.
+
+**Solution**:
+
+1. Verify component is registered:
+
+```typescript
+const components: TamboComponent[] = [
+  {
+    name: "MyComponent", // Must match exactly
+    component: MyComponent,
+    propsSchema: z.object({...}),
+  },
+];
+
+<TamboProvider components={components}>
+  {/* app */}
+</TamboProvider>
+```
+
+2. Check component name matches (case-sensitive):
+
+```typescript
+// Component registration
+name: "GraphComponent"
+
+// AI will call
+tool: "GraphComponent"
+```
+
+3. Verify props schema is valid:
+
+```typescript
+// Invalid - z.record not supported
+propsSchema: z.record(z.string())
+
+// Valid - use z.object
+propsSchema: z.object({
+  data: z.array(z.object({ name: z.string(), value: z.number() })),
+})
+```
+
+### Component Validation Errors
+
+**Problem**: "Component name too long" or validation errors.
+
+**Solution**:
+
+1. Keep component names under 64 characters
+2. Avoid spaces in names:
+
+```typescript
+// Invalid
+name: "My Graph Component"
+
+// Valid
+name: "MyGraphComponent"
+```
+
+3. No special characters except underscore:
+
+```typescript
+// Invalid
+name: "Graph-Component"
+
+// Valid
+name: "Graph_Component"
+```
+
+## Database Issues (Self-Hosted)
+
+### Connection Failed
+
+**Problem**: Cannot connect to database.
+
+**Supabase Solution**:
+
+```bash
+# Check Supabase is running
+npx supabase status
+
+# Restart if needed
+npx supabase stop
+npx supabase start
+
+# Verify DATABASE_URL in .env
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+**Docker PostgreSQL Solution**:
+
+```bash
+# Check container is running
+docker compose --env-file docker.env ps postgres
+
+# View logs
+docker compose --env-file docker.env logs postgres
+
+# Restart if needed
+docker compose --env-file docker.env restart postgres
+
+# Verify DATABASE_URL uses correct port (5433, not 5432)
+DATABASE_URL=postgresql://postgres:password@localhost:5433/tambo
+```
+
+### Migration Errors
+
+**Problem**: Database migrations fail.
+
+**Solution**:
+
+```bash
+# Check migration status
+npm run db:check -w packages/db
+
+# Reset database (WARNING: deletes all data)
+npx supabase db reset
+
+# Re-run migrations
+npm run db:migrate -w packages/db
+```
+
+## Port Conflicts
+
+**Problem**: "Port already in use" errors.
+
+**Solution**:
+
+1. Check what's using the port:
+
+```bash
+# macOS/Linux
+lsof -ti:8260 | xargs kill -9
+lsof -ti:8261 | xargs kill -9
+
+# Windows
+netstat -ano | findstr :8260
+taskkill /PID <PID> /F
+```
+
+2. Change ports in configuration:
+
+```bash
+# docker.env
+WEB_PORT=8270
+API_PORT=8271
+```
+
+## Build Issues
+
+### TypeScript Errors
+
+**Problem**: Type errors during build.
+
+**Solution**:
+
+```bash
+# Check types
+npm run check-types
+
+# Update TypeScript
+npm install typescript@latest -D
+
+# Clear TypeScript cache
+rm -rf node_modules/.cache
+```
+
+### Tailwind CSS Not Working
+
+**Problem**: Tailwind styles not applied.
+
+**Solution**:
+
+1. Verify Tailwind config includes component paths:
+
+```javascript
+// tailwind.config.js
+module.exports = {
+  content: [
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "./components/**/*.{js,ts,jsx,tsx}",
+    "./app/**/*.{js,ts,jsx,tsx}",
+  ],
+};
+```
+
+2. Import Tailwind in your CSS:
+
+```css
+/* globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+3. For CLI components, run setup:
+
+```bash
+tambo init
+# Select "Yes" for Tailwind setup
+```
+
+## MCP Issues
+
+### MCP Server Connection Failed
+
+**Problem**: Cannot connect to MCP server.
+
+**Solution**:
+
+1. Verify server is running:
+
+```bash
+curl http://localhost:8261/mcp
+```
+
+2. Check transport type matches:
+
+```typescript
+import { MCPTransport } from "@tambo-ai/react/mcp";
+
+const mcpServers = [
+  {
+    name: "my-server",
+    url: "http://localhost:8261/mcp",
+    transport: MCPTransport.HTTP, // Not SSE
+  },
+];
+```
+
+3. Verify MCP token if required:
+
+```typescript
+<TamboProvider
+  mcpServers={mcpServers}
+  mcpAccessToken={token}
+>
+```
+
+### MCP Tools Not Available
+
+**Problem**: MCP tools not showing up.
+
+**Solution**:
+
+1. Check server connection status:
+
+```typescript
+const { servers } = useTamboMCPServers();
+console.log(servers); // Check connection state
+```
+
+2. Verify tools are exposed by server:
+
+```bash
+# Test MCP endpoint
+curl http://localhost:8261/mcp/tools
+```
+
+## Performance Issues
+
+### Slow Response Times
+
+**Problem**: AI responses are slow.
+
+**Solution**:
+
+1. Use faster models:
+   - GPT-3.5 Turbo instead of GPT-4
+   - Claude Haiku instead of Opus
+   - Cerebras for ultra-fast inference
+
+2. Reduce context size:
+
+```typescript
+const { messages } = useTambo();
+const recentMessages = messages.slice(-10); // Last 10 messages
+```
+
+3. Enable streaming:
+
+```typescript
+streamable: true
+```
+
+### High Memory Usage
+
+**Problem**: Application uses too much memory.
+
+**Solution**:
+
+1. Limit message history:
+
+```typescript
+const MAX_MESSAGES = 50;
+const limitedMessages = messages.slice(-MAX_MESSAGES);
+```
+
+2. Clean up old threads:
+
+```typescript
+const { deleteThread } = useTambo();
+
+// Delete old threads
+await deleteThread(oldThreadId);
+```
+
+3. Use React.memo for expensive components:
+
+```typescript
+export const MyComponent = React.memo(({ data }) => {
+  // Component implementation
+});
+```
+
+## Getting More Help
+
+If these solutions don't resolve your issue:
+
+1. **Search GitHub Issues**: [github.com/tambo-ai/tambo/issues](https://github.com/tambo-ai/tambo/issues)
+2. **Ask on Discord**: [discord.gg/dJNvPEHth6](https://discord.gg/dJNvPEHth6)
+3. **Check Documentation**: [docs.tambo.co](https://docs.tambo.co)
+4. **Open New Issue**: Provide:
+   - Tambo version
+   - Node.js version
+   - Steps to reproduce
+   - Error messages
+   - Relevant code snippets
+
+## Related Resources
+
+- [Migration Guide](/resources/migration-guide)
+- [Contributing Guide](/resources/contributing)
+- [Self-Hosting Guide](/deployment/self-hosting)
+- [API Reference](/reference/api)

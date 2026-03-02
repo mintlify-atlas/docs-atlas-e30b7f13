@@ -1,0 +1,419 @@
+---
+title: tambo add
+description: Add Tambo components to your project with automatic dependency resolution
+---
+
+## Overview
+
+The `tambo add` command installs Tambo components into your project. It handles:
+
+- Dependency resolution (components and npm packages)
+- File copying and transformation
+- Tailwind CSS configuration
+- Global CSS setup
+- Component registry updates
+
+## Usage
+
+```bash
+tambo add <component> [options]
+```
+
+## Arguments
+
+<ParamField path="component" type="string" required>
+  Name of the component to install (e.g., `message-thread-full`, `control-bar`)
+</ParamField>
+
+## Options
+
+<ParamField path="--yes" type="boolean" default="false">
+  Auto-answer yes to all prompts (uses defaults)
+</ParamField>
+
+<ParamField path="--dry-run" type="boolean" default="false">
+  Preview changes without installing (shows files and dependencies)
+</ParamField>
+
+<ParamField path="--prefix" type="string">
+  Custom installation path (e.g., `src/components/tambo`)
+</ParamField>
+
+<ParamField path="--legacy-peer-deps" type="boolean" default="false">
+  Pass --legacy-peer-deps to npm install (for dependency conflicts)
+</ParamField>
+
+<ParamField path="--force-update" type="boolean" default="false">
+  Force reinstall even if component already exists
+</ParamField>
+
+## Interactive Mode (Default)
+
+When run without flags, `tambo add` guides you through:
+
+1. **Installation Path**: Choose between `src/components` or `components`
+2. **Dependency Resolution**: Automatically finds required dependencies
+3. **Installation Confirmation**: Review components and packages before installing
+4. **Component Installation**: Copies files and installs dependencies
+5. **Tailwind Setup**: Configures Tailwind CSS if needed
+
+### Example: Installing a Component
+
+```bash
+tambo add message-thread-full
+```
+
+Output:
+
+```
+ℹ Resolving dependencies...
+ℹ Components to be installed:
+  - message-thread-full
+  - message-input
+  - avatar
+  - scroll-area
+  - button
+
+ℹ Already installed components:
+  - card
+
+? Do you want to proceed with installation? (Y/n)
+
+ℹ Auto-proceeding with installation (--yes flag)
+
+✓ Installed message-thread-full
+✓ Installed message-input
+✓ Installed avatar
+✓ Installed scroll-area
+✓ Installed button
+
+✓ Installed dependencies: @radix-ui/react-avatar @radix-ui/react-scroll-area
+
+✓ Tailwind CSS configuration updated
+✓ Global styles updated
+
+✨ Installation complete!
+```
+
+## Non-Interactive Mode
+
+### Basic Installation
+
+```bash
+tambo add message-thread-full --yes
+```
+
+Skips all prompts and uses defaults.
+
+Exit code: `0`
+
+### Custom Installation Path
+
+```bash
+tambo add control-bar --prefix=src/components/tambo
+```
+
+Installs to the specified path without appending subdirectories.
+
+Exit code: `0`
+
+### Dry Run
+
+Preview changes without installing:
+
+```bash
+tambo add message-thread-panel --dry-run
+```
+
+Output:
+
+```
+ℹ Resolving dependencies...
+ℹ Components to be installed:
+  - message-thread-panel
+  - message-input
+  - resizable
+
+📋 Dry run - changes that would be made:
+
+Files to be created:
+  /Users/you/project/src/components/tambo/message-thread-panel.tsx
+  /Users/you/project/src/components/tambo/message-input.tsx
+  /Users/you/project/src/components/tambo/resizable.tsx
+
+Npm packages to install:
+  @radix-ui/react-resizable
+
+Dev dependencies to install:
+  @types/react-resizable
+
+(No changes made - this was a dry run)
+```
+
+Exit code: `0`
+
+### Force Update
+
+Reinstall existing components:
+
+```bash
+tambo add message-thread-full --force-update
+```
+
+Overwrites existing files.
+
+Exit code: `0`
+
+## Component Dependencies
+
+Many components depend on other components. The CLI automatically resolves and installs these dependencies.
+
+### Example Dependency Tree
+
+```
+message-thread-full
+├── message-input
+│   ├── button
+│   └── textarea
+├── avatar
+├── scroll-area
+└── card
+```
+
+Running `tambo add message-thread-full` installs all dependencies automatically.
+
+## Installation Paths
+
+### Default Behavior
+
+Components are installed to:
+
+- `src/components/tambo/` (if `src/` exists)
+- `components/tambo/` (if `src/` doesn't exist)
+
+The subdirectory `tambo/` is automatically appended unless `--prefix` is used.
+
+### Custom Path
+
+```bash
+tambo add button --prefix=app/ui/components
+```
+
+Installs to `app/ui/components/button.tsx` (no automatic subdirectory).
+
+### Legacy Components
+
+If you have components in the old `ui/` location:
+
+```
+⚠️  Found existing components in ui/. Installing new components to the same location for compatibility.
+
+💡 To migrate all components to the new location (tambo/), you'll need to:
+   1. Move all components from ui/ to tambo/
+   2. Update all import paths from @/components/ui/ to @/components/tambo/
+   3. Update any custom component registrations in tambo.ts
+
+   or you can run npx tambo migrate to migrate all components to the new location
+```
+
+## Tailwind CSS Setup
+
+The CLI automatically:
+
+1. Detects Tailwind version (v3 or v4)
+2. Adds required configuration
+3. Updates `tailwind.config.js` or `@theme` directives
+4. Creates/updates global CSS file
+
+### Tailwind v3
+
+Updates `tailwind.config.js`:
+
+```javascript
+module.exports = {
+  // ... existing config
+  content: [
+    "./src/components/tambo/**/*.{js,ts,jsx,tsx}",
+    // ... other paths
+  ],
+  theme: {
+    extend: {
+      // ... Tambo theme variables
+    }
+  }
+};
+```
+
+### Tailwind v4
+
+Updates CSS file with `@theme` directives:
+
+```css
+@import "tailwindcss";
+
+@theme {
+  /* Tambo theme variables */
+  --color-primary: #000;
+  /* ... */
+}
+```
+
+## Global Styles
+
+Creates or updates global CSS file (typically `app/globals.css` or `src/app/globals.css`):
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* CSS variables for theming */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    /* ... */
+  }
+
+  .dark {
+    /* Dark mode variables */
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    /* ... */
+  }
+}
+```
+
+## Component Registry
+
+After installation, components should be registered in `lib/tambo.ts`:
+
+```typescript
+import { TamboTool } from "@tambo-ai/react";
+
+// Import your components
+import { MessageThreadFull } from "@/components/tambo/message-thread-full";
+
+export const tools: TamboTool[] = [];
+
+export const components: Record<string, unknown> = {
+  MessageThreadFull,
+  // Add other components here
+};
+```
+
+Then use in your app:
+
+```typescript
+import { TamboProvider } from "@tambo-ai/react";
+import { components } from "@/lib/tambo";
+
+function App() {
+  return (
+    <TamboProvider apiKey="your-api-key" components={components}>
+      {/* Your app */}
+    </TamboProvider>
+  );
+}
+```
+
+## Error Handling
+
+### Component Not Found
+
+```bash
+tambo add nonexistent-component
+```
+
+Output:
+
+```
+✖ Installation failed: Component "nonexistent-component" not found in registry
+```
+
+Exit code: `1`
+
+### No package.json
+
+```bash
+tambo add button
+```
+
+Output:
+
+```
+✖ Installation failed: No package.json found. Please run this command in your project root.
+```
+
+Exit code: `1`
+
+### Dependency Conflicts
+
+```bash
+tambo add message-thread-full
+```
+
+If npm reports peer dependency conflicts:
+
+```
+✖ Failed to install dependencies
+
+Try running with --legacy-peer-deps flag:
+  tambo add message-thread-full --legacy-peer-deps
+```
+
+Exit code: `1`
+
+## Exit Codes
+
+- `0` - Success
+- `1` - Error (component not found, network failure, etc.)
+- `2` - User action required (non-interactive mode, missing arguments)
+
+## Available Components
+
+See [tambo list](/api/cli/commands#list) for a full list of available components.
+
+Commonly used components:
+
+- `message-thread-full` - Full-screen chat interface
+- `message-thread-panel` - Split-view chat with workspace
+- `message-thread-collapsible` - Collapsible chat sidebar
+- `control-bar` - Spotlight-style command palette
+- `agent-toolkit` - Pre-built agent with tools
+- `button` - Button component
+- `input` - Input component
+- `card` - Card component
+
+## Common Workflows
+
+### Quick Install
+
+```bash
+tambo add message-thread-full --yes
+```
+
+### Preview Before Installing
+
+```bash
+tambo add control-bar --dry-run
+tambo add control-bar --yes
+```
+
+### Custom Path Installation
+
+```bash
+tambo add button --prefix=src/ui/components/tambo
+```
+
+### CI/CD Pipeline
+
+```bash
+tambo add message-thread-full --yes --legacy-peer-deps
+```
+
+### Update Existing Component
+
+```bash
+tambo add button --force-update
+```

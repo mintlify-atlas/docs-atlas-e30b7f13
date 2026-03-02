@@ -1,0 +1,373 @@
+---
+title: Interactable Components
+description: Create persistent, AI-updatable components that remain on screen and can be modified through natural language
+---
+
+## Overview
+
+Interactable components persist on screen and can be updated by the AI through natural language requests. Unlike regular generative components that render once per message, interactable components:
+
+- **Remain visible** across multiple messages
+- **Update in place** when the AI modifies them
+- **Maintain state** that the AI can read and update
+- **Support refinement** through conversational iteration
+
+Perfect for shopping carts, task boards, forms, spreadsheets, and any UI that evolves through conversation.
+
+## Creating Interactable Components
+
+Use the `withTamboInteractable()` HOC to make any component interactable:
+
+```tsx
+import { withTamboInteractable } from '@tambo-ai/react';
+import { z } from 'zod';
+
+// 1. Define your component
+function Note({ title, content, color }: NoteProps) {
+  return (
+    <div className={`note ${color}`}>
+      <h3>{title}</h3>
+      <p>{content}</p>
+    </div>
+  );
+}
+
+// 2. Define schemas for props and state
+const notePropsSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  color: z.enum(["yellow", "blue", "green"]).optional(),
+});
+
+const noteStateSchema = z.object({
+  isPinned: z.boolean(),
+});
+
+// 3. Wrap with withTamboInteractable
+const InteractableNote = withTamboInteractable(Note, {
+  componentName: "Note",
+  description: "A note supporting title, content, and color modifications",
+  propsSchema: notePropsSchema,
+  stateSchema: noteStateSchema,
+});
+
+// 4. Use in your app
+function App() {
+  return (
+    <InteractableNote 
+      title="My Note" 
+      content="This note can be updated by AI" 
+    />
+  );
+}
+```
+
+## InteractableConfig
+
+The configuration object passed to `withTamboInteractable()` defines how the AI can interact with the component:
+
+```tsx
+interface InteractableConfig {
+  /** Component name for AI identification */
+  componentName: string;
+  
+  /** Description of the component's purpose and capabilities */
+  description: string;
+  
+  /** Schema for component props (validated on updates) */
+  propsSchema?: SupportedSchema;
+  
+  /** Schema for component state (validated on updates) */
+  stateSchema?: SupportedSchema;
+  
+  /** Optional annotations for the auto-registered tools */
+  annotations?: ToolAnnotations;
+}
+```
+
+### Component Name
+
+Unique identifier for this component type. Should be descriptive and unique across your app:
+
+```tsx
+componentName: "ShoppingCartItem"  // Good
+componentName: "Item"              // Too generic
+```
+
+### Description
+
+Explains to the AI what this component does and when to update it:
+
+```tsx
+description: "A shopping cart item showing product name, price, quantity, and subtotal. Can update quantity or remove the item."
+```
+
+### Props Schema
+
+Defines which props the AI can update. Only serializable props (strings, numbers, booleans, arrays, objects) can be tracked:
+
+```tsx
+propsSchema: z.object({
+  productName: z.string(),
+  price: z.number(),
+  quantity: z.number().min(1),
+  imageUrl: z.string().url().optional(),
+})
+```
+
+### State Schema
+
+Defines internal state that the AI can read and modify independently from props:
+
+```tsx
+stateSchema: z.object({
+  isExpanded: z.boolean(),
+  selectedVariant: z.string().optional(),
+})
+```
+
+## Props vs State
+
+Interactable components separate **props** (external data) from **state** (internal data):
+
+### Props
+
+- Passed from parent component
+- Updated by AI through tool calls
+- Controlled by external data
+
+```tsx
+<InteractableNote 
+  title="External Title"    // Prop from parent
+  content="External content" // Prop from parent
+/>
+```
+
+### State
+
+Managed internally using `useTamboComponentState()` hook:
+
+```tsx
+function Note({ title, content }: NoteProps) {
+  // AI can read and update this state
+  const [isPinned, setIsPinned] = useTamboComponentState(
+    "isPinned", 
+    false  // initial value
+  );
+  
+  return (
+    <div className={isPinned ? "pinned" : ""}>
+      <h3>{title}</h3>
+      <p>{content}</p>
+      <button onClick={() => setIsPinned(!isPinned)}>
+        {isPinned ? "Unpin" : "Pin"}
+      </button>
+    </div>
+  );
+}
+```
+
+## Auto-Registered Tools
+
+When you create an interactable component, Tambo automatically registers two tools for the AI:
+
+### 1. Update Props Tool
+
+Allows the AI to update component props:
+
+```typescript
+// Automatically created
+name: `update_${componentName}_props`
+description: "Update props for the ${componentName} component"
+```
+
+User: "Change the note title to 'Important'"
+AI: Calls `update_Note_props({ title: "Important" })`
+
+### 2. Update State Tool
+
+Allows the AI to update component state:
+
+```typescript
+// Automatically created  
+name: `update_${componentName}_state`
+description: "Update state for the ${componentName} component"
+```
+
+User: "Pin that note"
+AI: Calls `update_Note_state({ isPinned: true })`
+
+## WithTamboInteractableProps
+
+The HOC injects additional props you can use:
+
+```tsx
+interface WithTamboInteractableProps {
+  /** Optional custom ID for this instance */
+  interactableId?: string;
+  
+  /** Callback when component is registered */
+  onInteractableReady?: (id: string) => void;
+  
+  /** Callback when props are updated by AI */
+  onPropsUpdate?: (newProps: Record<string, unknown>) => void;
+}
+```
+
+Example usage:
+
+```tsx
+<InteractableNote
+  title="My Note"
+  content="Note content"
+  onInteractableReady={(id) => console.log(`Note registered: ${id}`)}
+  onPropsUpdate={(props) => console.log("AI updated props:", props)}
+/>
+```
+
+## Component State Management
+
+Use `useTamboComponentState()` inside your component to create AI-readable state:
+
+```tsx
+import { useTamboComponentState } from '@tambo-ai/react';
+
+function TaskCard({ title, description }: TaskCardProps) {
+  const [isCompleted, setIsCompleted, { isPending }] = useTamboComponentState(
+    "isCompleted",
+    false  // initial value
+  );
+  
+  return (
+    <div className={isCompleted ? "completed" : ""}>
+      <h3>{title}</h3>
+      <p>{description}</p>
+      <button 
+        onClick={() => setIsCompleted(!isCompleted)}
+        disabled={isPending}  // Disable during AI updates
+      >
+        {isCompleted ? "Mark Incomplete" : "Mark Complete"}
+      </button>
+    </div>
+  );
+}
+```
+
+The hook returns:
+- `[0]` - Current state value
+- `[1]` - Setter function
+- `[2]` - Metadata object with `isPending` flag
+
+## Streaming Updates
+
+By default, prop and state updates stream in real-time. Disable streaming for specific components:
+
+```tsx
+const InteractableNote = withTamboInteractable(Note, {
+  componentName: "Note",
+  description: "A note component",
+  propsSchema: noteSchema,
+  annotations: {
+    tamboStreamableHint: false,  // Disable streaming
+  },
+});
+```
+
+When streaming is disabled, updates apply atomically after the AI finishes generating them.
+
+## Multiple Instances
+
+You can render multiple instances of the same interactable component. Each gets a unique ID:
+
+```tsx
+function NotesPage() {
+  return (
+    <div>
+      <InteractableNote 
+        title="Note 1" 
+        content="First note"
+        onInteractableReady={(id) => console.log(`Note 1 ID: ${id}`)}
+      />
+      <InteractableNote 
+        title="Note 2" 
+        content="Second note"
+        onInteractableReady={(id) => console.log(`Note 2 ID: ${id}`)}
+      />
+    </div>
+  );
+}
+```
+
+The AI can target specific instances by their properties:
+
+User: "Change the first note's title"
+AI: Identifies Note 1 and calls its update tool
+
+## Best Practices
+
+### Keep State Minimal
+
+Only expose state that the AI should control:
+
+```tsx
+// ✅ Good - AI-relevant state
+const [isPinned, setIsPinned] = useTamboComponentState("isPinned", false);
+
+// ❌ Bad - UI-only state (use regular useState)
+const [isHovered, setIsHovered] = useState(false);
+```
+
+### Provide Clear Descriptions
+
+Help the AI understand what updates are possible:
+
+```tsx
+description: "A task item with title, description, due date, and completion status. Can mark as complete/incomplete, change due date, or update text."
+```
+
+### Handle Loading States
+
+Show feedback during AI updates:
+
+```tsx
+function TaskCard({ title }: TaskCardProps) {
+  const [isCompleted, setIsCompleted, { isPending }] = useTamboComponentState(
+    "isCompleted",
+    false
+  );
+  
+  return (
+    <div className={isPending ? "opacity-50" : ""}>
+      <h3>{title}</h3>
+      {isPending && <Spinner />}
+    </div>
+  );
+}
+```
+
+### Use Schemas for Validation
+
+Validate updates with schema constraints:
+
+```tsx
+propsSchema: z.object({
+  quantity: z.number().min(1).max(99),  // Enforce limits
+  email: z.string().email(),            // Validate format
+  status: z.enum(["pending", "active", "done"]),  // Restrict values
+})
+```
+
+## Lifecycle
+
+1. **Mount** - Component renders with initial props
+2. **Registration** - HOC registers component with unique ID
+3. **Tool Creation** - Update tools are registered with AI
+4. **Updates** - AI can call update tools to modify props/state
+5. **Unmount** - Component cleanup (tools remain available)
+
+## Next Steps
+
+- Learn about [Component State](/concepts/streaming) for streaming updates
+- Explore [Tools](/concepts/tools) to understand the underlying tool system
+- See [Generative UI](/concepts/generative-ui) for the broader context
+- Check [Components](/concepts/components) for basic component concepts

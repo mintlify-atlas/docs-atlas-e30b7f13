@@ -1,0 +1,196 @@
+---
+title: TamboProvider
+description: Main provider component that wraps your application with Tambo SDK functionality
+---
+
+## Overview
+
+The `TamboProvider` component is the root provider for the Tambo React SDK. It composes multiple internal providers to deliver a complete context for building AI-powered applications with component registration, tool execution, thread management, and streaming support.
+
+This provider should wrap your entire application or the portion that needs access to Tambo functionality.
+
+## Import
+
+```tsx
+import { TamboProvider } from '@tambo-ai/react';
+```
+
+## Usage
+
+```tsx
+import { TamboProvider } from '@tambo-ai/react';
+import { WeatherCard, StockChart } from './components';
+import { searchTool, calculatorTool } from './tools';
+
+function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
+      userKey={currentUserId}
+      components={[WeatherCard, StockChart]}
+      tools={[searchTool, calculatorTool]}
+    >
+      <ChatInterface />
+    </TamboProvider>
+  );
+}
+```
+
+## Props
+
+### Authentication
+
+<ParamField path="apiKey" type="string" required>
+  Tambo API key for authentication. Get your API key from the [Tambo dashboard](https://dashboard.tambo.co).
+</ParamField>
+
+<ParamField path="userKey" type="string">
+  User key for thread ownership and scoping. **Required**: You must provide either `userKey` OR `userToken`.
+  
+  All thread operations (create, list, fetch) only return threads owned by this userKey.
+  
+  - Use `userKey` for server-side or trusted environments where you control the user identity
+  - Use `userToken` (OAuth bearer token) for client-side apps where the token contains the userKey
+</ParamField>
+
+<ParamField path="userToken" type="string">
+  OAuth bearer token containing the userKey (alternative to `userKey`). Use this for client-side applications.
+</ParamField>
+
+### Configuration
+
+<ParamField path="tamboUrl" type="string">
+  Optional custom Tambo API URL. Defaults to the production API endpoint.
+</ParamField>
+
+<ParamField path="environment" type="object">
+  Optional environment configuration for advanced API settings.
+</ParamField>
+
+### Components & Tools
+
+<ParamField path="components" type="TamboComponent[]">
+  Array of components to register with the AI. These components will be available for the AI to use in responses.
+  
+  See [Component Registration](/concepts/generative-interfaces/components) for details.
+</ParamField>
+
+<ParamField path="tools" type="TamboTool[]">
+  Array of tools to register for client-side execution. These tools will be executed when requested by the AI.
+  
+  See [Tool Registration](/concepts/tools/client-tools) for details.
+</ParamField>
+
+<ParamField path="mcpServers" type="(McpServerInfo | string)[]">
+  MCP (Model Context Protocol) servers to register. These provide additional tools and resources from MCP-compatible servers.
+  
+  Can be specified as:
+  - Full `McpServerInfo` objects with configuration
+  - Simple strings for command-line MCP servers
+</ParamField>
+
+<ParamField path="onCallUnregisteredTool" type="(toolName: string, input: unknown) => unknown">
+  Callback function called when an unregistered tool is requested by the AI. If not provided, an error will be thrown for unknown tools.
+</ParamField>
+
+### Resources
+
+<ParamField path="resources" type="ListResourceItem[]">
+  Array of static resources to register with the AI. These resources will be available for the AI to access.
+</ParamField>
+
+<ParamField path="listResources" type="(query?: string) => Promise<ListResourceItem[]>">
+  Dynamic resource search function. Must be paired with `getResource`. Called when searching for resources dynamically.
+</ParamField>
+
+<ParamField path="getResource" type="(uri: string) => Promise<ReadResourceResult>">
+  Dynamic resource fetch function. Must be paired with `listResources`. Called when fetching a specific resource by URI.
+</ParamField>
+
+### Context Helpers
+
+<ParamField path="contextHelpers" type="ContextHelpers">
+  Dictionary of functions that provide additional context to the AI. Each key becomes the context name, and the function returns the value.
+  
+  ```tsx
+  {
+    currentPage: () => ({ url: window.location.href }),
+    userPreferences: () => ({ theme: 'dark' })
+  }
+  ```
+</ParamField>
+
+### Thread Management
+
+<ParamField path="autoGenerateThreadName" type="boolean" default="true">
+  Whether to automatically generate thread names after a threshold of messages.
+</ParamField>
+
+<ParamField path="autoGenerateNameThreshold" type="number" default="3">
+  The message count threshold at which the thread name will be auto-generated.
+</ParamField>
+
+<ParamField path="initialMessages" type="InitialInputMessage[]">
+  Initial messages to seed new threads with. These are displayed in the UI immediately (before the first API call) and sent to the API when the first message is submitted.
+</ParamField>
+
+## Type Definitions
+
+### TamboProviderProps
+
+```tsx
+interface TamboProviderProps {
+  // Authentication
+  apiKey: string;
+  tamboUrl?: string;
+  environment?: object;
+  userToken?: string;
+  userKey?: string;
+  
+  // Components & Tools
+  components?: TamboComponent[];
+  tools?: TamboTool[];
+  mcpServers?: (McpServerInfo | string)[];
+  onCallUnregisteredTool?: (toolName: string, input: unknown) => unknown;
+  
+  // Resources
+  resources?: ListResourceItem[];
+  listResources?: (query?: string) => Promise<ListResourceItem[]>;
+  getResource?: (uri: string) => Promise<ReadResourceResult>;
+  
+  // Context
+  contextHelpers?: ContextHelpers;
+  
+  // Thread configuration
+  autoGenerateThreadName?: boolean;
+  autoGenerateNameThreshold?: number;
+  initialMessages?: InitialInputMessage[];
+  
+  // Children
+  children: React.ReactNode;
+}
+```
+
+## Authentication States
+
+The provider monitors authentication state and emits console warnings for common configuration issues:
+
+- **Unauthenticated**: Neither `userKey` nor `userToken` provided - API requests will be blocked
+- **Invalid**: Both `userKey` and `userToken` provided - you must provide one or the other
+- **Error**: Token exchange failed - check your token validity
+- **Identified**: Successfully authenticated and ready to make API calls
+
+## Thread Ownership
+
+All thread operations require user identification. Threads are scoped to the `userKey` - each user only sees their own threads.
+
+Provide ONE of:
+- `userKey` - Direct user identifier (for server-side or trusted environments)
+- `userToken` - OAuth bearer token containing the userKey (for client-side apps)
+
+## Related
+
+- [useTambo()](/api/react/use-tambo) - Main hook for accessing Tambo functionality
+- [useTamboThreadInput()](/api/react/use-tambo-thread-input) - Hook for managing message input
+- [Component Registration](/concepts/generative-interfaces/components)
+- [Tool Registration](/concepts/tools/client-tools)

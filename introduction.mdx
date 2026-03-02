@@ -1,0 +1,143 @@
+---
+title: Introduction to Tambo AI
+description: Build agents that speak your UI with the open-source generative UI toolkit for React
+---
+
+Tambo AI is a React toolkit for building agents that render UI (also known as generative UI). Register your components with Zod schemas, and the agent picks the right one and streams the props so users can interact with them.
+
+"Show me sales by region" renders your `<Chart>`. "Add a task" updates your `<TaskBoard>`.
+
+## What you get
+
+Tambo is a fullstack solution for adding generative UI to your app:
+
+1. **Agent included** — Tambo runs the LLM conversation loop for you. Bring your own API key (OpenAI, Anthropic, Gemini, Mistral, or any OpenAI-compatible provider).
+
+2. **Streaming infrastructure** — Props stream to your components as the LLM generates them. Cancellation, error recovery, and reconnection are handled for you.
+
+3. **Tambo Cloud or self-host** — Cloud is a hosted backend that manages conversation state and agent orchestration. Self-hosted runs the same backend on your infrastructure via Docker.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Get from zero to working code in 5 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install packages and dependencies
+  </Card>
+  <Card title="Generative components" icon="sparkles" href="/concepts/generative-interfaces/generative-components">
+    Components that render once in response to messages
+  </Card>
+  <Card title="Interactable components" icon="hand-pointer" href="/concepts/generative-interfaces/interactable-components">
+    Persistent components that update as users refine requests
+  </Card>
+</CardGroup>
+
+## Quick example
+
+Register components with Zod schemas. The AI decides when to render them:
+
+```tsx
+import { TamboProvider, useTambo, useTamboThreadInput } from "@tambo-ai/react";
+import { z } from "zod";
+
+// Define your component
+function Graph({ data, type }) {
+  return <div>Chart renders here</div>;
+}
+
+// Register it with Tambo
+const components = [
+  {
+    name: "Graph",
+    description: "Displays data as charts",
+    component: Graph,
+    propsSchema: z.object({
+      data: z.array(z.object({ name: z.string(), value: z.number() })),
+      type: z.enum(["line", "bar", "pie"]),
+    }),
+  },
+];
+
+// Wrap your app
+function App() {
+  return (
+    <TamboProvider
+      apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY}
+      userKey={currentUserId}
+      components={components}
+    >
+      <ChatInterface />
+    </TamboProvider>
+  );
+}
+
+// Build your chat interface
+function ChatInterface() {
+  const { messages, isStreaming } = useTambo();
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+  return (
+    <form onSubmit={async (e) => {
+      e.preventDefault();
+      await submit();
+    }}>
+      {messages.map((msg) => (
+        <Message key={msg.id} message={msg} />
+      ))}
+      {isStreaming && <LoadingIndicator />}
+      <input value={value} onChange={(e) => setValue(e.target.value)} />
+      <button disabled={isPending}>Send</button>
+    </form>
+  );
+}
+```
+
+## Key features
+
+### Generative components
+
+Render once in response to a message. Perfect for charts, summaries, and data visualizations.
+
+### Interactable components
+
+Persist and update as users refine requests. Great for shopping carts, spreadsheets, and task boards.
+
+### MCP integrations
+
+Connect to Linear, Slack, databases, or your own MCP servers. Tambo supports the full MCP protocol.
+
+### Local tools
+
+Define browser-side functions the AI can call. DOM manipulation, authenticated fetches, accessing React state.
+
+### Streaming props
+
+Props stream to components as the LLM generates them. Users see updates in real-time.
+
+## How Tambo compares
+
+| Feature | Tambo | Vercel AI SDK | CopilotKit | Assistant UI |
+|---------|-------|---------------|------------|-------------|
+| **Component selection** | AI decides which components to render | Manual tool-to-component mapping | Via agent frameworks | Chat-focused tool UI |
+| **MCP integration** | Built-in | Experimental (v4.2+) | Recently added | Requires AI SDK v5 |
+| **Persistent stateful components** | Yes | No | Shared state patterns | No |
+| **Client-side tool execution** | Declarative, automatic | Manual via onToolCall | Agent-side only | No |
+| **Self-hostable** | MIT (SDK + backend) | Apache 2.0 (SDK only) | MIT | MIT |
+| **Hosted option** | Tambo Cloud | No | CopilotKit Cloud | Assistant Cloud |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Get started" icon="rocket" href="/quickstart">
+    Build your first Tambo app in 5 minutes
+  </Card>
+  <Card title="Core concepts" icon="book" href="/concepts/generative-interfaces/generative-components">
+    Learn about generative and interactable components
+  </Card>
+  <Card title="Component library" icon="grid" href="https://ui.tambo.co">
+    Browse pre-built components
+  </Card>
+  <Card title="Join Discord" icon="discord" href="https://discord.gg/dJNvPEHth6">
+    Get help from the community
+  </Card>
+</CardGroup>
