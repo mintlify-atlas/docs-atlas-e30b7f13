@@ -1,0 +1,156 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Tambo AI",
+  "projectDescription": "Generative UI SDK for React - build agents that render dynamic, interactive components through natural language",
+  "theme": "palm",
+  "primaryColor": "#8B5CF6",
+  "lightColor": "#A78BFA",
+  "darkColor": "#7C3AED",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/generative-ui",
+              "concepts/components",
+              "concepts/interactable-components",
+              "concepts/tools",
+              "concepts/threads",
+              "concepts/mcp",
+              "concepts/authentication",
+              "concepts/streaming"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/register-components",
+              "guides/register-tools",
+              "guides/context-helpers",
+              "guides/suggestions",
+              "guides/voice-input",
+              "guides/self-hosting",
+              "guides/error-handling"
+            ]
+          },
+          {
+            "group": "Templates & Examples",
+            "pages": [
+              "examples/overview",
+              "examples/chat-interface",
+              "examples/analytics-dashboard",
+              "examples/task-board"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "React SDK",
+            "pages": [
+              "api/react/provider",
+              "api/react/use-tambo",
+              "api/react/use-tambo-thread-input",
+              "api/react/use-tambo-component-state",
+              "api/react/use-tambo-stream-status",
+              "api/react/use-tambo-suggestions",
+              "api/react/with-interactable"
+            ]
+          },
+          {
+            "group": "Client",
+            "pages": [
+              "api/client/tambo-client",
+              "api/client/tambo-stream",
+              "api/client/types"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "api/cli/init",
+              "api/cli/add",
+              "api/cli/create-app",
+              "api/cli/commands"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types/components",
+              "api/types/tools",
+              "api/types/threads",
+              "api/types/messages"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Resources",
+            "pages": [
+              "resources/llm-providers",
+              "resources/component-library",
+              "resources/migration-guide",
+              "resources/troubleshooting",
+              "resources/contributing",
+              "resources/changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI-driven component selection and rendering",
+    "Real-time prop streaming from LLM to React components",
+    "Persistent interactable components with state management",
+    "Built-in MCP protocol support for tool integrations",
+    "Client-side and server-side tool execution",
+    "Framework-agnostic core client (@tambo-ai/client)",
+    "Self-hostable backend with Docker support",
+    "Hosted Tambo Cloud option for managed infrastructure",
+    "CLI for component scaffolding and project management",
+    "Support for multiple LLM providers (OpenAI, Anthropic, Gemini, etc.)"
+  ],
+  "publicApiSurface": [
+    "TamboProvider",
+    "useTambo()",
+    "useTamboThreadInput()",
+    "useTamboComponentState()",
+    "useTamboStreamStatus()",
+    "useTamboSuggestions()",
+    "useTamboVoice()",
+    "useTamboThread()",
+    "useTamboThreadList()",
+    "withTamboInteractable()",
+    "TamboClient",
+    "TamboStream",
+    "defineTool()",
+    "ComponentRenderer",
+    "currentPageContextHelper",
+    "currentTimeContextHelper",
+    "TamboComponent interface",
+    "TamboTool interface",
+    "MCPTransport enum",
+    "tambo init",
+    "tambo add",
+    "tambo create-app",
+    "tambo list"
+  ]
+}
